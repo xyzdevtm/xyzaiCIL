@@ -6,12 +6,6 @@
   "bin": {
     "xyzai": "dist/index.js"
   },
-  "files": [
-    "dist",
-    "locales",
-    "README.md",
-    "LICENSE"
-  ],
   "scripts": {
     "build": "tsup src/index.ts --format cjs --clean",
     "dev": "tsup src/index.ts --format cjs --watch",
