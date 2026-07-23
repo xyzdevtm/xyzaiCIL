@@ -13293,8 +13293,8 @@ var init_registry = __esm({
       async execute(args, ctx) {
         const question = args.question;
         const options = args.options;
-        const readline = await import("readline");
-        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const readline2 = await import("readline");
+        const rl = readline2.createInterface({ input: process.stdin, output: process.stdout });
         return new Promise((resolve) => {
           console.log(source_default.cyan(`
 \u2753 ${question}`));
@@ -13678,271 +13678,168 @@ __export(app_exports, {
 function startTUI(config) {
   const loadedConfig = config || loadConfig();
   const agent = new Agent(loadedConfig);
-  const screen2 = blessed.screen({
-    smartCSR: true,
-    title: "XYZAI - AI Coding Assistant"
+  process.stdout.write("\x1Bc");
+  printBanner(loadedConfig);
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout
   });
-  const header = blessed.box({
-    parent: screen2,
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: 3,
-    content: source_default.bold.cyan(" \u{1F525} XYZAI ") + source_default.gray("| ") + source_default.white("AI Coding Assistant") + source_default.gray(" | ") + source_default.yellow(loadedConfig.model),
-    border: { type: "line" },
-    style: {
-      border: { fg: "cyan" },
-      fg: "white"
-    }
-  });
-  const chatArea = blessed.box({
-    parent: screen2,
-    top: 3,
-    left: 0,
-    width: "100%",
-    height: "100%-5",
-    scrollable: true,
-    alwaysScroll: true,
-    scrollbar: {
-      style: {
-        bg: "cyan"
-      }
-    },
-    style: {
-      fg: "white"
-    }
-  });
-  const inputBox = blessed.box({
-    parent: screen2,
-    bottom: 0,
-    left: 0,
-    width: "100%",
-    height: 3,
-    border: { type: "line" },
-    label: source_default.cyan(" Message "),
-    style: {
-      border: { fg: "cyan" },
-      fg: "white"
-    }
-  });
-  const input = blessed.textarea({
-    parent: inputBox,
-    top: 0,
-    left: 1,
-    width: "100%-2",
-    height: 1,
-    inputOnFocus: true,
-    style: {
-      fg: "white",
-      focus: {
-        border: { fg: "cyan" }
-      }
-    }
-  });
-  const statusBar = blessed.box({
-    parent: screen2,
-    bottom: 3,
-    left: 0,
-    width: "100%",
-    height: 1,
-    content: source_default.gray(" Tab: switch mode | Ctrl+C: exit | /help: help"),
-    style: {
-      fg: "gray",
-      bg: "black"
-    }
-  });
-  const welcomeMsg = loadedConfig.language === "fa" ? "\u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627.\n\u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 /help \u0631\u0627 \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627 \u0628\u0632\u0646\u06CC\u062F." : "Hello! I'm XYZAI, your AI coding assistant.\nType a message or /help for help.";
-  addMessage(chatArea, "system", welcomeMsg);
-  const messages = [];
-  input.on("submit", async (text) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    input.clearValue();
-    screen2.render();
-    if (trimmed.startsWith("/")) {
-      handleCommand(trimmed, loadedConfig, agent, chatArea, screen2);
+  promptUser(rl, loadedConfig);
+  rl.on("line", async (input) => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      promptUser(rl, loadedConfig);
       return;
     }
-    addMessage(chatArea, "user", trimmed);
-    messages.push({ role: "user", content: trimmed });
-    screen2.render();
-    const thinkingId = addMessage(chatArea, "thinking", "\u{1F914} " + (loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking..."));
-    screen2.render();
-    let fullResponse = "";
+    if (trimmed.startsWith("/")) {
+      handleCommand(trimmed, loadedConfig, agent, rl);
+      return;
+    }
     const callbacks = {
       onThinking: () => {
+        process.stdout.write(source_default.yellow("  \u23F3 Thinking...\r"));
       },
       onToken: (token) => {
-        fullResponse += token;
-        updateMessage(chatArea, thinkingId, "assistant", fullResponse);
-        screen2.render();
+        process.stdout.write(token);
       },
       onToolCall: (name, args) => {
-        addMessage(chatArea, "tool", `\u{1F527} ${name}`);
-        screen2.render();
+        process.stdout.write(source_default.blue(`
+  \u{1F527} ${name}
+`));
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          addMessage(chatArea, "error", `\u274C ${result.error}`);
-          screen2.render();
+          process.stdout.write(source_default.red(`  \u274C ${result.error}
+`));
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
-        messages.push({ role: "assistant", content: response });
+        process.stdout.write("\n\n");
+        promptUser(rl, loadedConfig);
       },
       onError: (error) => {
-        removeMessage(chatArea, thinkingId);
-        addMessage(chatArea, "error", `\u274C Error: ${error}`);
-        screen2.render();
+        process.stdout.write(source_default.red(`
+  \u274C Error: ${error}
+
+`));
+        promptUser(rl, loadedConfig);
       }
     };
+    process.stdout.write("\n");
     await agent.chat(trimmed, callbacks);
-    screen2.render();
   });
-  input.key(["C-c"], () => {
+  rl.on("close", () => {
+    console.log(source_default.gray("\n" + (loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!")));
     process.exit(0);
   });
-  screen2.key(["C-c"], () => {
+  process.on("SIGINT", () => {
+    console.log(source_default.gray("\n" + (loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!")));
     process.exit(0);
   });
-  input.focus();
-  screen2.render();
 }
-function addMessage(parent, role, content) {
-  const id = messageId++;
-  const colors = {
-    user: "cyan",
-    assistant: "green",
-    system: "gray",
-    thinking: "yellow",
-    tool: "blue",
-    error: "red"
-  };
-  const labels = {
-    user: "\u{1F464} You",
-    assistant: "\u{1F916} XYZAI",
-    system: "\u{1F4E2} System",
-    thinking: "\u23F3",
-    tool: "\u{1F527} Tool",
-    error: "\u274C Error"
-  };
-  const color = colors[role] || "white";
-  const label = labels[role] || role;
-  const box2 = blessed.box({
-    parent,
-    width: "100%",
-    height: "auto",
-    tags: true,
-    content: `{${color}-fg}${label}:{/${color}-fg} ${content}`,
-    style: {
-      fg: "white"
-    }
+function printBanner(config) {
+  const width = 50;
+  const line = "\u2500".repeat(width);
+  console.log("");
+  console.log(source_default.cyan("  \u2554" + line + "\u2557"));
+  console.log(source_default.cyan("  \u2551") + source_default.bold.white("  \u{1F525} XYZAI") + source_default.gray(" - AI Coding Assistant") + source_default.cyan("\u2551"));
+  console.log(source_default.cyan("  \u2551") + source_default.gray("  " + config.model.padEnd(width - 2)) + source_default.cyan("\u2551"));
+  console.log(source_default.cyan("  \u255A" + line + "\u255D"));
+  console.log("");
+  if (config.language === "fa") {
+    console.log(source_default.white("  \u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627."));
+    console.log(source_default.gray("  \u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 ") + source_default.yellow("/help") + source_default.gray(" \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627"));
+  } else {
+    console.log(source_default.white("  Hello! I'm XYZAI, your AI coding assistant."));
+    console.log(source_default.gray("  Type a message or ") + source_default.yellow("/help") + source_default.gray(" for help"));
+  }
+  console.log("");
+}
+function promptUser(rl, config) {
+  const prompt = config.language === "fa" ? source_default.cyan("  \u0634\u0645\u0627 \u276F ") : source_default.cyan("  You \u276F ");
+  rl.question(prompt, () => {
   });
-  box2._messageId = id;
-  parent.setScrollPerc(100);
-  return id;
 }
-function updateMessage(parent, id, role, content) {
-  const children = parent.children || [];
-  for (const child of children) {
-    if (child._messageId === id) {
-      const colors = {
-        assistant: "green",
-        thinking: "yellow"
-      };
-      const labels = {
-        assistant: "\u{1F916} XYZAI",
-        thinking: "\u23F3"
-      };
-      const color = colors[role] || "white";
-      const label = labels[role] || role;
-      child.setContent(`{${color}-fg}${label}:{/${color}-fg} ${content}`);
-      parent.setScrollPerc(100);
-      break;
-    }
-  }
-}
-function removeMessage(parent, id) {
-  const children = parent.children || [];
-  for (const child of children) {
-    if (child._messageId === id) {
-      parent.remove(child);
-      break;
-    }
-  }
-}
-function handleCommand(cmd, config, agent, chatArea, screen2) {
+function handleCommand(cmd, config, agent, rl) {
   const parts = cmd.split(" ");
   const command = parts[0].toLowerCase();
   switch (command) {
     case "/exit":
     case "/quit":
+      console.log(source_default.gray(config.language === "fa" ? "\n  \u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "\n  Goodbye!"));
       process.exit(0);
     case "/help":
-      const helpText = config.language === "fa" ? `=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===
-
-\u062F\u0633\u062A\u0648\u0631\u0627\u062A:
-  /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627
-  /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644
-  /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)
-  /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647
-  /exit  - \u062E\u0631\u0648\u062C
-
-\u0627\u0628\u0632\u0627\u0631\u0647\u0627:
-  \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627
-  \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644
-  \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F
-  \u0645\u0631\u0648\u0631 \u0648\u0628` : `=== XYZAI Help ===
-
-Commands:
-  /help  - Show help
-  /model - Change model
-  /lang  - Change language (fa/en)
-  /clear - Clear conversation
-  /exit  - Exit
-
-Tools:
-  Read and write files
-  Execute terminal commands
-  Search code
-  Browse the web`;
-      addMessage(chatArea, "system", helpText);
+      console.log("");
+      if (config.language === "fa") {
+        console.log(source_default.bold.cyan("  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"));
+        console.log("");
+        console.log(source_default.white("  \u062F\u0633\u062A\u0648\u0631\u0627\u062A:"));
+        console.log(source_default.gray("    /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627"));
+        console.log(source_default.gray("    /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644"));
+        console.log(source_default.gray("    /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)"));
+        console.log(source_default.gray("    /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647"));
+        console.log(source_default.gray("    /exit  - \u062E\u0631\u0648\u062C"));
+        console.log("");
+        console.log(source_default.white("  \u0627\u0628\u0632\u0627\u0631\u0647\u0627:"));
+        console.log(source_default.gray("    \u2022 \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627"));
+        console.log(source_default.gray("    \u2022 \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644"));
+        console.log(source_default.gray("    \u2022 \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F"));
+        console.log(source_default.gray("    \u2022 \u0645\u0631\u0648\u0631 \u0648\u0628"));
+      } else {
+        console.log(source_default.bold.cyan("  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 XYZAI Help \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"));
+        console.log("");
+        console.log(source_default.white("  Commands:"));
+        console.log(source_default.gray("    /help  - Show help"));
+        console.log(source_default.gray("    /model - Change model"));
+        console.log(source_default.gray("    /lang  - Change language (fa/en)"));
+        console.log(source_default.gray("    /clear - Clear conversation"));
+        console.log(source_default.gray("    /exit  - Exit"));
+        console.log("");
+        console.log(source_default.white("  Tools:"));
+        console.log(source_default.gray("    \u2022 Read and write files"));
+        console.log(source_default.gray("    \u2022 Execute terminal commands"));
+        console.log(source_default.gray("    \u2022 Search code"));
+        console.log(source_default.gray("    \u2022 Browse the web"));
+      }
+      console.log("");
       break;
     case "/lang":
       const lang = parts[1];
       if (lang === "en" || lang === "fa") {
         config.language = lang;
         agent.setLanguage(lang);
-        addMessage(chatArea, "system", lang === "fa" ? "\u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "Language changed to English");
+        console.log(source_default.green(lang === "fa" ? "\n  \u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\n" : "\n  \u2713 Language changed to English\n"));
       } else {
-        addMessage(chatArea, "system", "Usage: /lang fa  or  /lang en");
+        console.log(source_default.gray("\n  Usage: /lang fa  or  /lang en\n"));
       }
       break;
     case "/clear":
       agent.clearConversation();
-      while (chatArea.children.length > 0) {
-        chatArea.remove(chatArea.children[0]);
-      }
-      addMessage(chatArea, "system", config.language === "fa" ? "\u0645\u06A9\u0627\u0644\u0645\u0647 \u067E\u0627\u06A9 \u0634\u062F" : "Conversation cleared");
+      console.log(source_default.green(config.language === "fa" ? "\n  \u2713 \u0645\u06A9\u0627\u0644\u0645\u0647 \u067E\u0627\u06A9 \u0634\u062F\n" : "\n  \u2713 Conversation cleared\n"));
       break;
     case "/model":
-      addMessage(chatArea, "system", `${config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC" : "Current model"}: ${config.model}`);
+      console.log(source_default.cyan(config.language === "fa" ? "\n  \u0645\u062F\u0644 \u0641\u0639\u0644\u06CC:" : "\n  Current model:"));
+      console.log(source_default.white(`  ${config.model}
+`));
       break;
     default:
-      addMessage(chatArea, "error", config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}`);
+      console.log(source_default.red(config.language === "fa" ? `
+  \u274C \u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}
+` : `
+  \u274C Unknown command: ${command}
+`));
   }
-  screen2.render();
+  promptUser(rl, config);
 }
-var blessed, messageId;
+var readline;
 var init_app = __esm({
   "src/tui/app.ts"() {
     "use strict";
-    blessed = __toESM(require("blessed"));
+    readline = __toESM(require("readline"));
     init_source();
     init_agent();
     init_schema();
-    messageId = 0;
   }
 });
 

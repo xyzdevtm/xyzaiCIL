@@ -1,4 +1,4 @@
-import * as blessed from 'blessed';
+import * as readline from 'readline';
 import chalk from 'chalk';
 import { Agent, AgentCallbacks } from '../core/agent';
 import { XYZAIConfig, loadConfig } from '../config/schema';
@@ -7,286 +7,147 @@ export function startTUI(config?: XYZAIConfig): void {
   const loadedConfig = config || loadConfig();
   const agent = new Agent(loadedConfig);
 
-  // Create screen
-  const screen = blessed.screen({
-    smartCSR: true,
-    title: 'XYZAI - AI Coding Assistant',
+  // Clear screen
+  process.stdout.write('\x1Bc');
+
+  // Show banner
+  printBanner(loadedConfig);
+
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
   });
 
-  // Header
-  const header = blessed.box({
-    parent: screen,
-    top: 0,
-    left: 0,
-    width: '100%',
-    height: 3,
-    content: chalk.bold.cyan(' 🔥 XYZAI ') + chalk.gray('| ') + chalk.white('AI Coding Assistant') + chalk.gray(' | ') + chalk.yellow(loadedConfig.model),
-    border: { type: 'line' },
-    style: {
-      border: { fg: 'cyan' },
-      fg: 'white',
-    },
-  });
+  promptUser(rl, loadedConfig);
 
-  // Chat area
-  const chatArea = blessed.box({
-    parent: screen,
-    top: 3,
-    left: 0,
-    width: '100%',
-    height: '100%-5',
-    scrollable: true,
-    alwaysScroll: true,
-    scrollbar: {
-      style: {
-        bg: 'cyan',
-      },
-    },
-    style: {
-      fg: 'white',
-    },
-  });
-
-  // Input area
-  const inputBox = blessed.box({
-    parent: screen,
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: 3,
-    border: { type: 'line' },
-    label: chalk.cyan(' Message '),
-    style: {
-      border: { fg: 'cyan' },
-      fg: 'white',
-    },
-  });
-
-  const input = blessed.textarea({
-    parent: inputBox,
-    top: 0,
-    left: 1,
-    width: '100%-2',
-    height: 1,
-    inputOnFocus: true,
-    style: {
-      fg: 'white',
-      focus: {
-        border: { fg: 'cyan' },
-      },
-    },
-  });
-
-  // Status bar
-  const statusBar = blessed.box({
-    parent: screen,
-    bottom: 3,
-    left: 0,
-    width: '100%',
-    height: 1,
-    content: chalk.gray(' Tab: switch mode | Ctrl+C: exit | /help: help'),
-    style: {
-      fg: 'gray',
-      bg: 'black',
-    },
-  });
-
-  // Welcome message
-  const welcomeMsg = loadedConfig.language === 'fa'
-    ? 'سلام! من XYZAI هستم، دستیار برنامه‌نویسی هوش مصنوعی شما.\nیک پیام تایپ کنید یا /help را برای راهنما بزنید.'
-    : 'Hello! I\'m XYZAI, your AI coding assistant.\nType a message or /help for help.';
-
-  addMessage(chatArea, 'system', welcomeMsg);
-
-  // Message history
-  const messages: Array<{ role: string; content: string }> = [];
-
-  // Handle input
-  input.on('submit', async (text: string) => {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-
-    input.clearValue();
-    screen.render();
-
-    // Handle commands
-    if (trimmed.startsWith('/')) {
-      handleCommand(trimmed, loadedConfig, agent, chatArea, screen);
+  rl.on('line', async (input: string) => {
+    const trimmed = input.trim();
+    if (!trimmed) {
+      promptUser(rl, loadedConfig);
       return;
     }
 
-    // Add user message
-    addMessage(chatArea, 'user', trimmed);
-    messages.push({ role: 'user', content: trimmed });
-    screen.render();
+    // Handle commands
+    if (trimmed.startsWith('/')) {
+      handleCommand(trimmed, loadedConfig, agent, rl);
+      return;
+    }
 
-    // Show thinking
-    const thinkingId = addMessage(chatArea, 'thinking', '🤔 ' + (loadedConfig.language === 'fa' ? 'در حال فکر کردن...' : 'Thinking...'));
-    screen.render();
-
-    // Call AI
-    let fullResponse = '';
+    // Send to AI
     const callbacks: AgentCallbacks = {
-      onThinking: () => {},
+      onThinking: () => {
+        process.stdout.write(chalk.yellow('  ⏳ Thinking...\r'));
+      },
       onToken: (token) => {
-        fullResponse += token;
-        updateMessage(chatArea, thinkingId, 'assistant', fullResponse);
-        screen.render();
+        process.stdout.write(token);
       },
       onToolCall: (name, args) => {
-        addMessage(chatArea, 'tool', `🔧 ${name}`);
-        screen.render();
+        process.stdout.write(chalk.blue(`\n  🔧 ${name}\n`));
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          addMessage(chatArea, 'error', `❌ ${result.error}`);
-          screen.render();
+          process.stdout.write(chalk.red(`  ❌ ${result.error}\n`));
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
-        messages.push({ role: 'assistant', content: response });
+        process.stdout.write('\n\n');
+        promptUser(rl, loadedConfig);
       },
       onError: (error) => {
-        removeMessage(chatArea, thinkingId);
-        addMessage(chatArea, 'error', `❌ Error: ${error}`);
-        screen.render();
+        process.stdout.write(chalk.red(`\n  ❌ Error: ${error}\n\n`));
+        promptUser(rl, loadedConfig);
       },
     };
 
+    process.stdout.write('\n');
     await agent.chat(trimmed, callbacks);
-    screen.render();
   });
 
-  // Key bindings
-  input.key(['C-c'], () => {
+  rl.on('close', () => {
+    console.log(chalk.gray('\n' + (loadedConfig.language === 'fa' ? 'خداحافظ!' : 'Goodbye!')));
     process.exit(0);
   });
 
-  screen.key(['C-c'], () => {
+  // Handle Ctrl+C
+  process.on('SIGINT', () => {
+    console.log(chalk.gray('\n' + (loadedConfig.language === 'fa' ? 'خداحافظ!' : 'Goodbye!')));
     process.exit(0);
   });
-
-  // Focus input
-  input.focus();
-  screen.render();
 }
 
-let messageId = 0;
+function printBanner(config: XYZAIConfig): void {
+  const width = 50;
+  const line = '─'.repeat(width);
 
-function addMessage(parent: any, role: string, content: string): number {
-  const id = messageId++;
-  const colors: Record<string, string> = {
-    user: 'cyan',
-    assistant: 'green',
-    system: 'gray',
-    thinking: 'yellow',
-    tool: 'blue',
-    error: 'red',
-  };
+  console.log('');
+  console.log(chalk.cyan('  ╔' + line + '╗'));
+  console.log(chalk.cyan('  ║') + chalk.bold.white('  🔥 XYZAI') + chalk.gray(' - AI Coding Assistant') + chalk.cyan('║'));
+  console.log(chalk.cyan('  ║') + chalk.gray('  ' + config.model.padEnd(width - 2)) + chalk.cyan('║'));
+  console.log(chalk.cyan('  ╚' + line + '╝'));
+  console.log('');
 
-  const labels: Record<string, string> = {
-    user: '👤 You',
-    assistant: '🤖 XYZAI',
-    system: '📢 System',
-    thinking: '⏳',
-    tool: '🔧 Tool',
-    error: '❌ Error',
-  };
-
-  const color = colors[role] || 'white';
-  const label = labels[role] || role;
-
-  const box = blessed.box({
-    parent,
-    width: '100%',
-    height: 'auto',
-    tags: true,
-    content: `{${color}-fg}${label}:{/${color}-fg} ${content}`,
-    style: {
-      fg: 'white',
-    },
-  });
-
-  (box as any)._messageId = id;
-
-  // Auto-scroll
-  parent.setScrollPerc(100);
-
-  return id;
-}
-
-function updateMessage(parent: any, id: number, role: string, content: string): void {
-  const children = parent.children || [];
-  for (const child of children) {
-    if ((child as any)._messageId === id) {
-      const colors: Record<string, string> = {
-        assistant: 'green',
-        thinking: 'yellow',
-      };
-      const labels: Record<string, string> = {
-        assistant: '🤖 XYZAI',
-        thinking: '⏳',
-      };
-      const color = colors[role] || 'white';
-      const label = labels[role] || role;
-      child.setContent(`{${color}-fg}${label}:{/${color}-fg} ${content}`);
-      parent.setScrollPerc(100);
-      break;
-    }
+  if (config.language === 'fa') {
+    console.log(chalk.white('  سلام! من XYZAI هستم، دستیار برنامه‌نویسی هوش مصنوعی شما.'));
+    console.log(chalk.gray('  یک پیام تایپ کنید یا ') + chalk.yellow('/help') + chalk.gray(' برای راهنما'));
+  } else {
+    console.log(chalk.white("  Hello! I'm XYZAI, your AI coding assistant."));
+    console.log(chalk.gray('  Type a message or ') + chalk.yellow('/help') + chalk.gray(' for help'));
   }
+  console.log('');
 }
 
-function removeMessage(parent: any, id: number): void {
-  const children = parent.children || [];
-  for (const child of children) {
-    if ((child as any)._messageId === id) {
-      parent.remove(child);
-      break;
-    }
-  }
+function promptUser(rl: readline.Interface, config: XYZAIConfig): void {
+  const prompt = config.language === 'fa'
+    ? chalk.cyan('  شما ❯ ')
+    : chalk.cyan('  You ❯ ');
+  rl.question(prompt, () => {});
 }
 
-function handleCommand(cmd: string, config: XYZAIConfig, agent: any, chatArea: any, screen: any): void {
+function handleCommand(cmd: string, config: XYZAIConfig, agent: any, rl: readline.Interface): void {
   const parts = cmd.split(' ');
   const command = parts[0].toLowerCase();
 
   switch (command) {
     case '/exit':
     case '/quit':
+      console.log(chalk.gray(config.language === 'fa' ? '\n  خداحافظ!' : '\n  Goodbye!'));
       process.exit(0);
 
     case '/help':
-      const helpText = config.language === 'fa'
-        ? `=== راهنمای XYZAI ===
-
-دستورات:
-  /help  - نمایش راهنما
-  /model - تغییر مدل
-  /lang  - تغییر زبان (fa/en)
-  /clear - پاک کردن مکالمه
-  /exit  - خروج
-
-ابزارها:
-  خواندن و نوشتن فایل‌ها
-  اجرای دستورات ترمینال
-  جستجوی کد
-  مرور وب`
-        : `=== XYZAI Help ===
-
-Commands:
-  /help  - Show help
-  /model - Change model
-  /lang  - Change language (fa/en)
-  /clear - Clear conversation
-  /exit  - Exit
-
-Tools:
-  Read and write files
-  Execute terminal commands
-  Search code
-  Browse the web`;
-      addMessage(chatArea, 'system', helpText);
+      console.log('');
+      if (config.language === 'fa') {
+        console.log(chalk.bold.cyan('  ═══════════════ راهنمای XYZAI ═══════════════'));
+        console.log('');
+        console.log(chalk.white('  دستورات:'));
+        console.log(chalk.gray('    /help  - نمایش راهنما'));
+        console.log(chalk.gray('    /model - تغییر مدل'));
+        console.log(chalk.gray('    /lang  - تغییر زبان (fa/en)'));
+        console.log(chalk.gray('    /clear - پاک کردن مکالمه'));
+        console.log(chalk.gray('    /exit  - خروج'));
+        console.log('');
+        console.log(chalk.white('  ابزارها:'));
+        console.log(chalk.gray('    • خواندن و نوشتن فایل‌ها'));
+        console.log(chalk.gray('    • اجرای دستورات ترمینال'));
+        console.log(chalk.gray('    • جستجوی کد'));
+        console.log(chalk.gray('    • مرور وب'));
+      } else {
+        console.log(chalk.bold.cyan('  ═══════════════ XYZAI Help ═══════════════'));
+        console.log('');
+        console.log(chalk.white('  Commands:'));
+        console.log(chalk.gray('    /help  - Show help'));
+        console.log(chalk.gray('    /model - Change model'));
+        console.log(chalk.gray('    /lang  - Change language (fa/en)'));
+        console.log(chalk.gray('    /clear - Clear conversation'));
+        console.log(chalk.gray('    /exit  - Exit'));
+        console.log('');
+        console.log(chalk.white('  Tools:'));
+        console.log(chalk.gray('    • Read and write files'));
+        console.log(chalk.gray('    • Execute terminal commands'));
+        console.log(chalk.gray('    • Search code'));
+        console.log(chalk.gray('    • Browse the web'));
+      }
+      console.log('');
       break;
 
     case '/lang':
@@ -294,28 +155,25 @@ Tools:
       if (lang === 'en' || lang === 'fa') {
         config.language = lang;
         agent.setLanguage(lang);
-        addMessage(chatArea, 'system', lang === 'fa' ? 'زبان به فارسی تغییر کرد' : 'Language changed to English');
+        console.log(chalk.green(lang === 'fa' ? '\n  ✓ زبان به فارسی تغییر کرد\n' : '\n  ✓ Language changed to English\n'));
       } else {
-        addMessage(chatArea, 'system', 'Usage: /lang fa  or  /lang en');
+        console.log(chalk.gray('\n  Usage: /lang fa  or  /lang en\n'));
       }
       break;
 
     case '/clear':
       agent.clearConversation();
-      // Clear chat area
-      while (chatArea.children.length > 0) {
-        chatArea.remove(chatArea.children[0]);
-      }
-      addMessage(chatArea, 'system', config.language === 'fa' ? 'مکالمه پاک شد' : 'Conversation cleared');
+      console.log(chalk.green(config.language === 'fa' ? '\n  ✓ مکالمه پاک شد\n' : '\n  ✓ Conversation cleared\n'));
       break;
 
     case '/model':
-      addMessage(chatArea, 'system', `${config.language === 'fa' ? 'مدل فعلی' : 'Current model'}: ${config.model}`);
+      console.log(chalk.cyan(config.language === 'fa' ? '\n  مدل فعلی:' : '\n  Current model:'));
+      console.log(chalk.white(`  ${config.model}\n`));
       break;
 
     default:
-      addMessage(chatArea, 'error', config.language === 'fa' ? `دستور ناشناخته: ${command}` : `Unknown command: ${command}`);
+      console.log(chalk.red(config.language === 'fa' ? `\n  ❌ دستور ناشناخته: ${command}\n` : `\n  ❌ Unknown command: ${command}\n`));
   }
 
-  screen.render();
+  promptUser(rl, config);
 }
