@@ -13672,125 +13672,170 @@ var app_exports = {};
 __export(app_exports, {
   startTUI: () => startTUI
 });
+function getTermSize() {
+  return {
+    width: process.stdout.columns || 80,
+    height: process.stdout.rows || 24
+  };
+}
 function clearScreen() {
-  process.stdout.write(CSI + "2J" + CSI + "H");
+  process.stdout.write("\x1B[2J");
+  process.stdout.write("\x1B[H");
 }
 function moveTo(x, y) {
-  process.stdout.write(CSI + `${y + 1};${x + 1}H`);
+  process.stdout.write(`\x1B[${y};${x}H`);
 }
 function setCursorVisible(visible) {
-  process.stdout.write(CSI + (visible ? "?25h" : "?25l"));
+  process.stdout.write(visible ? "\x1B[?25h" : "\x1B[?25l");
 }
-function drawBox(x, y, width, height, title) {
+function drawCentered(y, text, color) {
+  const { width } = getTermSize();
+  const x = Math.floor((width - text.length) / 2);
   moveTo(x, y);
-  process.stdout.write(source_default.cyan("\u250C"));
-  if (title) {
-    const titleText = ` ${title} `;
-    const padding = width - 2 - titleText.length;
-    const leftPad = Math.floor(padding / 2);
-    const rightPad = padding - leftPad;
-    process.stdout.write(source_default.cyan("\u2500".repeat(leftPad)));
-    process.stdout.write(source_default.bold.white(titleText));
-    process.stdout.write(source_default.cyan("\u2500".repeat(rightPad)));
-  } else {
-    process.stdout.write(source_default.cyan("\u2500".repeat(width - 2)));
-  }
-  process.stdout.write(source_default.cyan("\u2510"));
-  for (let i = 1; i < height - 1; i++) {
-    moveTo(x, y + i);
-    process.stdout.write(source_default.cyan("\u2502"));
-    process.stdout.write(" ".repeat(width - 2));
-    process.stdout.write(source_default.cyan("\u2502"));
-  }
-  moveTo(x, y + height - 1);
-  process.stdout.write(source_default.cyan("\u2514"));
-  process.stdout.write(source_default.cyan("\u2500".repeat(width - 2)));
-  process.stdout.write(source_default.cyan("\u2518"));
-}
-function drawText(x, y, text, color) {
-  moveTo(x, y);
-  if (color) {
+  if (color && source_default[color]) {
     process.stdout.write(source_default[color](text));
   } else {
     process.stdout.write(text);
   }
 }
+function drawBox(x, y, width, height, options) {
+  const border = options?.borderColor || "cyan";
+  const borderFn = source_default[border] || source_default.cyan;
+  moveTo(x, y);
+  process.stdout.write(borderFn("\u2554" + "\u2550".repeat(width - 2) + "\u2557"));
+  for (let i = 1; i < height - 1; i++) {
+    moveTo(x, y + i);
+    process.stdout.write(borderFn("\u2551"));
+    process.stdout.write(" ".repeat(width - 2));
+    process.stdout.write(borderFn("\u2551"));
+  }
+  moveTo(x, y + height - 1);
+  process.stdout.write(borderFn("\u255A" + "\u2550".repeat(width - 2) + "\u255D"));
+}
+function drawStatusBar(config, termHeight) {
+  const { width } = getTermSize();
+  const statusY = termHeight - 1;
+  moveTo(1, statusY);
+  process.stdout.write(" ".repeat(width - 2));
+  moveTo(2, statusY);
+  process.stdout.write(source_default.bgCyan.black(" Build "));
+  process.stdout.write(source_default.gray(" \xB7 "));
+  process.stdout.write(source_default.white(config.model));
+  moveTo(width - 8, statusY);
+  process.stdout.write(source_default.gray("0.1.0"));
+}
+function drawShortcuts(termHeight) {
+  const { width } = getTermSize();
+  const shortcutsY = termHeight - 3;
+  moveTo(2, shortcutsY);
+  process.stdout.write(source_default.white("tab"));
+  process.stdout.write(source_default.gray(" switch mode  "));
+  process.stdout.write(source_default.white("ctrl+p"));
+  process.stdout.write(source_default.gray(" settings  "));
+  process.stdout.write(source_default.cyan("@"));
+  process.stdout.write(source_default.gray(" attach file  "));
+  process.stdout.write(source_default.cyan("$"));
+  process.stdout.write(source_default.gray(" subagent  "));
+  process.stdout.write(source_default.yellow("/"));
+  process.stdout.write(source_default.gray(" commands"));
+}
+function drawTip(config, termHeight) {
+  const { width } = getTermSize();
+  const tipY = termHeight - 5;
+  moveTo(2, tipY);
+  process.stdout.write(source_default.yellow("\u25CF "));
+  process.stdout.write(source_default.yellow("Tip "));
+  if (config.language === "fa") {
+    process.stdout.write(source_default.gray("\u0628\u0631\u0627\u06CC \u0648\u0631\u0648\u062F /login \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 API \u062E\u0648\u062F \u0631\u0627 \u062A\u0646\u0638\u06CC\u0645 \u06A9\u0646\u06CC\u062F"));
+  } else {
+    process.stdout.write(source_default.gray("Run /login to sign in or configure your own API"));
+  }
+}
 function startTUI(config) {
   const loadedConfig = config || loadConfig();
   const agent = new Agent(loadedConfig);
-  const termWidth = process.stdout.columns || 80;
-  const termHeight = process.stdout.rows || 24;
+  const { width, height } = getTermSize();
   clearScreen();
   setCursorVisible(false);
-  const headerHeight = 3;
-  const footerHeight = 3;
-  const chatHeight = termHeight - headerHeight - footerHeight - 2;
-  drawBox(0, 0, termWidth, headerHeight, "\u{1F525} XYZAI");
-  drawText(2, 1, "AI Coding Assistant", "white");
-  drawText(termWidth - 30, 1, loadedConfig.model, "gray");
-  drawBox(0, headerHeight, termWidth, chatHeight + 2);
-  drawBox(0, termHeight - footerHeight, termWidth, footerHeight);
-  drawText(2, termHeight - footerHeight + 1, loadedConfig.language === "fa" ? "\u067E\u06CC\u0627\u0645 \u062E\u0648\u062F \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F..." : "Type your message...", "gray");
-  drawText(2, termHeight - 1, "/help", "yellow");
-  drawText(10, termHeight - 1, loadedConfig.language === "fa" ? "\u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "for help", "gray");
-  const welcomeY = headerHeight + 1;
-  const welcomeMsg = loadedConfig.language === "fa" ? "\u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627." : "Hello! I'm XYZAI, your AI coding assistant.";
-  drawText(2, welcomeY, welcomeMsg, "green");
-  const helpMsg = loadedConfig.language === "fa" ? "\u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 /help \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "Type a message or /help for help";
-  drawText(2, welcomeY + 1, helpMsg, "gray");
+  const logoLines = XYZAI_LOGO.trim().split("\n");
+  const logoStartY = Math.floor(height / 2) - logoLines.length - 4;
+  logoLines.forEach((line, i) => {
+    drawCentered(logoStartY + i, line, "yellow");
+  });
+  drawCentered(logoStartY + logoLines.length + 1, "Xiaomi", "gray");
+  const inputBoxWidth = Math.min(60, width - 20);
+  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
+  const inputBoxY = logoStartY + logoLines.length + 3;
+  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
+  moveTo(inputBoxX + 2, inputBoxY + 1);
+  process.stdout.write(source_default.gray("Type your message... (type / for commands)"));
+  drawStatusBar(loadedConfig, height);
+  drawShortcuts(height);
+  drawTip(loadedConfig, height);
   setCursorVisible(true);
-  const inputY = termHeight - footerHeight + 1;
-  moveTo(2, inputY);
+  moveTo(inputBoxX + 2, inputBoxY + 1);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: ""
   });
   const messages = [];
-  let currentY = welcomeY + 3;
-  process.stdout.write(source_default.cyan("> "));
   rl.on("line", async (input) => {
     const trimmed = input.trim();
     if (!trimmed) {
-      process.stdout.write(source_default.cyan("> "));
+      moveTo(inputBoxX + 2, inputBoxY + 1);
       return;
     }
     if (trimmed.startsWith("/")) {
-      handleCommand(trimmed, loadedConfig, agent, rl, messages, currentY);
+      handleCommand(trimmed, loadedConfig, agent, rl, messages);
       return;
     }
     clearScreen();
-    redrawUI(loadedConfig, messages, termWidth, termHeight, headerHeight, footerHeight, chatHeight);
-    messages.push({ role: "user", content: trimmed, y: currentY });
-    currentY = printMessage(currentY, "user", trimmed, termWidth);
-    const thinkingY = currentY;
-    currentY = printMessage(currentY, "thinking", loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking...", termWidth);
+    setCursorVisible(false);
+    drawCentered(2, "\u{1F525} XYZAI", "cyan");
+    drawCentered(3, loadedConfig.model, "gray");
+    let y = 5;
+    for (const msg of messages) {
+      y = printMessage(y, msg.role, msg.content, width);
+    }
+    messages.push({ role: "user", content: trimmed });
+    y = printMessage(y, "user", trimmed, width);
+    const thinkingY = y;
+    y = printMessage(y, "thinking", loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking...", width);
+    drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
+    drawStatusBar(loadedConfig, height);
+    drawShortcuts(height);
+    drawTip(loadedConfig, height);
     let fullResponse = "";
     const callbacks = {
       onThinking: () => {
       },
       onToken: (token) => {
         fullResponse += token;
-        currentY = printMessage(thinkingY, "assistant", fullResponse, termWidth, true);
+        printMessage(thinkingY, "assistant", fullResponse, width, true);
       },
       onToolCall: (name, args) => {
-        currentY = printMessage(currentY, "tool", `\u{1F527} ${name}`, termWidth);
+        y = printMessage(y, "tool", `\u{1F527} ${name}`, width);
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          currentY = printMessage(currentY, "error", `\u274C ${result.error}`, termWidth);
+          y = printMessage(y, "error", `\u274C ${result.error}`, width);
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
-        messages.push({ role: "assistant", content: response, y: thinkingY });
-        printFooter(loadedConfig, termWidth, termHeight, footerHeight);
-        process.stdout.write(source_default.cyan("> "));
+        messages.push({ role: "assistant", content: response });
+        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
+        drawStatusBar(loadedConfig, height);
+        setCursorVisible(true);
+        moveTo(inputBoxX + 2, inputBoxY + 1);
       },
       onError: (error) => {
-        currentY = printMessage(currentY, "error", `\u274C Error: ${error}`, termWidth);
-        printFooter(loadedConfig, termWidth, termHeight, footerHeight);
-        process.stdout.write(source_default.cyan("> "));
+        y = printMessage(y, "error", `\u274C Error: ${error}`, width);
+        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
+        drawStatusBar(loadedConfig, height);
+        setCursorVisible(true);
+        moveTo(inputBoxX + 2, inputBoxY + 1);
       }
     };
     await agent.chat(trimmed, callbacks);
@@ -13809,22 +13854,22 @@ function startTUI(config) {
   });
 }
 function printMessage(y, role, content, termWidth, overwrite) {
+  const { width } = getTermSize();
   const prefix = {
-    user: source_default.cyan("  \u0634\u0645\u0627: "),
-    assistant: source_default.green("  XYZAI: "),
-    thinking: source_default.yellow("  \u23F3 "),
-    tool: source_default.blue("  \u{1F527} "),
-    error: source_default.red("  \u274C "),
-    system: source_default.gray("  \u{1F4E2} ")
+    user: source_default.cyan("You: "),
+    assistant: source_default.green("XYZAI: "),
+    thinking: source_default.yellow("\u23F3 "),
+    tool: source_default.blue("\u{1F527} "),
+    error: source_default.red("\u274C ")
   };
-  const p = prefix[role] || "  ";
-  const maxWidth = termWidth - 4;
+  const p = prefix[role] || "";
+  const maxWidth = width - 8;
   const words = content.split(" ");
   let lines = [];
   let currentLine = "";
   for (const word of words) {
     if ((currentLine + " " + word).length > maxWidth) {
-      lines.push(currentLine);
+      if (currentLine) lines.push(currentLine);
       currentLine = word;
     } else {
       currentLine = currentLine ? currentLine + " " + word : word;
@@ -13832,9 +13877,9 @@ function printMessage(y, role, content, termWidth, overwrite) {
   }
   if (currentLine) lines.push(currentLine);
   for (let i = 0; i < lines.length; i++) {
-    moveTo(2, y + i);
-    process.stdout.write(" ".repeat(termWidth - 4));
-    moveTo(2, y + i);
+    moveTo(4, y + i);
+    process.stdout.write(" ".repeat(width - 8));
+    moveTo(4, y + i);
     if (i === 0) {
       process.stdout.write(p + lines[i]);
     } else {
@@ -13843,25 +13888,7 @@ function printMessage(y, role, content, termWidth, overwrite) {
   }
   return y + lines.length + 1;
 }
-function redrawUI(config, messages, termWidth, termHeight, headerHeight, footerHeight, chatHeight) {
-  clearScreen();
-  drawBox(0, 0, termWidth, headerHeight, "\u{1F525} XYZAI");
-  drawText(2, 1, "AI Coding Assistant", "white");
-  drawText(termWidth - 30, 1, config.model, "gray");
-  drawBox(0, headerHeight, termWidth, chatHeight + 2);
-  let y = headerHeight + 1;
-  for (const msg of messages) {
-    y = printMessage(y, msg.role, msg.content, termWidth);
-  }
-  printFooter(config, termWidth, termHeight, footerHeight);
-}
-function printFooter(config, termWidth, termHeight, footerHeight) {
-  drawBox(0, termHeight - footerHeight, termWidth, footerHeight);
-  drawText(2, termHeight - footerHeight + 1, config.language === "fa" ? "\u067E\u06CC\u0627\u0645 \u062E\u0648\u062F \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F..." : "Type your message...", "gray");
-  drawText(2, termHeight - 1, "/help", "yellow");
-  drawText(10, termHeight - 1, config.language === "fa" ? "\u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "for help", "gray");
-}
-function handleCommand(cmd, config, agent, rl, messages, currentY) {
+function handleCommand(cmd, config, agent, rl, messages) {
   const parts = cmd.split(" ");
   const command = parts[0].toLowerCase();
   switch (command) {
@@ -13899,40 +13926,48 @@ Tools:
   \u2022 Execute terminal commands
   \u2022 Search code
   \u2022 Browse the web`;
-      messages.push({ role: "system", content: helpText, y: currentY });
-      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
-      process.stdout.write(source_default.cyan("> "));
+      messages.push({ role: "system", content: helpText });
       break;
     case "/lang":
       const lang = parts[1];
       if (lang === "en" || lang === "fa") {
         config.language = lang;
         agent.setLanguage(lang);
-        messages.push({ role: "system", content: lang === "fa" ? "\u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "\u2713 Language changed to English", y: currentY });
+        messages.push({ role: "system", content: lang === "fa" ? "\u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "\u2713 Language changed to English" });
       } else {
-        messages.push({ role: "system", content: "Usage: /lang fa  or  /lang en", y: currentY });
+        messages.push({ role: "system", content: "Usage: /lang fa  or  /lang en" });
       }
-      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
-      process.stdout.write(source_default.cyan("> "));
       break;
     case "/clear":
       agent.clearConversation();
       messages.length = 0;
-      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
-      process.stdout.write(source_default.cyan("> "));
       break;
     case "/model":
-      messages.push({ role: "system", content: `${config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC" : "Current model"}: ${config.model}`, y: currentY });
-      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
-      process.stdout.write(source_default.cyan("> "));
+      messages.push({ role: "system", content: `${config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC" : "Current model"}: ${config.model}` });
       break;
     default:
-      messages.push({ role: "error", content: config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}`, y: currentY });
-      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
-      process.stdout.write(source_default.cyan("> "));
+      messages.push({ role: "error", content: config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}` });
   }
+  clearScreen();
+  setCursorVisible(false);
+  const { width, height } = getTermSize();
+  drawCentered(2, "\u{1F525} XYZAI", "cyan");
+  drawCentered(3, config.model, "gray");
+  let y = 5;
+  for (const msg of messages) {
+    y = printMessage(y, msg.role, msg.content, width);
+  }
+  const inputBoxWidth = Math.min(60, width - 20);
+  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
+  const inputBoxY = height - 8;
+  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
+  drawStatusBar(config, height);
+  drawShortcuts(height);
+  drawTip(config, height);
+  setCursorVisible(true);
+  moveTo(inputBoxX + 2, inputBoxY + 1);
 }
-var readline, ESC, CSI;
+var readline, XYZAI_LOGO;
 var init_app = __esm({
   "src/tui/app.ts"() {
     "use strict";
@@ -13940,8 +13975,14 @@ var init_app = __esm({
     init_source();
     init_agent();
     init_schema();
-    ESC = "\x1B";
-    CSI = ESC + "[";
+    XYZAI_LOGO = `
+    \u2593\u2588\u2588\u2588\u2588\u2588\u2584\u2584\u2584\u2588\u2588\u2588\u2588\u2588\u2593
+    \u2592\u2588\u2588\u2580 \u2592\u2588\u2588\u2593 \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592
+    \u2591\u2588\u2588   \u2592\u2593\u2588\u2588\u2591 \u2592\u2588\u2588\u2591 \u2592\u2588\u2588\u2591
+    \u2591\u2588\u2588\u2593  \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592
+    \u2591 \u2592\u2593\u2593\u2593\u2591\u2588\u2588\u2592 \u2591\u2588\u2588\u2588\u2588\u2588\u2588\u2592\u2591
+       \u2591\u2592\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591   \u2591\u2592\u2593\u2593\u2593\u2591
+`;
   }
 });
 
