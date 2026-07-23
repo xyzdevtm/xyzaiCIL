@@ -1,0 +1,20 @@
+{
+  "welcome": "Welcome to XYZAI",
+  "help": "Type a message to start. Type /help for help.",
+  "input_placeholder": "Type your message...",
+  "thinking": "Thinking...",
+  "error": "Error",
+  "permission_ask": "Allow this action?",
+  "permission_allow": "Allow",
+  "permission_deny": "Deny",
+  "session_saved": "Session saved",
+  "session_loaded": "Session loaded",
+  "goodbye": "Goodbye!",
+  "tool_executing": "Executing tool",
+  "no_response": "No response received",
+  "model_changed": "Model changed",
+  "config_saved": "Config saved",
+  "language_switched": "Language changed",
+  "welcome_message": "Hello! I'm XYZAI, your AI coding assistant.\n\nTo get started, type a message or use these commands:\n  /help  - Show help\n  /model - Change model\n  /lang  - Change language\n  /exit  - Exit",
+  "help_message": "=== XYZAI Help ===\n\nCommands:\n  /help  - Show this help\n  /model - Change AI model\n  /lang  - Change language (fa/en)\n  /clear - Clear conversation\n  /sessions - List sessions\n  /exit  - Exit\n\nTools:\n  Read and write files\n  Execute terminal commands\n  Search code\n  Browse the web\n\nTip: Use @file to reference files."
+}

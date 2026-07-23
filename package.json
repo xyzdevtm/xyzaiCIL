@@ -1,0 +1,66 @@
+{
+  "name": "xyzai",
+  "version": "0.1.0",
+  "description": "XYZAI - AI Coding Assistant CLI with Persian support",
+  "main": "dist/index.js",
+  "bin": {
+    "xyzai": "bin/xyzai"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "locales",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs --clean",
+    "dev": "tsup src/index.ts --format cjs --watch",
+    "start": "node dist/index.js",
+    "test": "node test.js",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build",
+    "prepare": "npm run build",
+    "release": "npm version patch && git push --tags"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xyzai/xyzai.git"
+  },
+  "bugs": {
+    "url": "https://github.com/xyzai/xyzai/issues"
+  },
+  "homepage": "https://github.com/xyzai/xyzai#readme",
+  "keywords": [
+    "ai",
+    "cli",
+    "coding-assistant",
+    "persian",
+    "llm",
+    "mimo",
+    "deepseek",
+    "gemini",
+    "openai"
+  ],
+  "author": "XYZAI Team",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@types/react": "^19.2.17",
+    "chalk": "^5.6.2",
+    "commander": "^15.0.0",
+    "highlight.js": "^11.11.1",
+    "ink": "^5.2.1",
+    "marked": "^18.0.7",
+    "openai": "^6.48.0",
+    "react": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "tsup": "^8.5.1",
+    "typescript": "^7.0.2"
+  }
+}
