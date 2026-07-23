@@ -13625,11 +13625,10 @@ var require_package = __commonJS({
       description: "XYZAI - AI Coding Assistant CLI with Persian support",
       main: "dist/index.js",
       bin: {
-        xyzai: "bin/xyzai"
+        xyzai: "dist/index.js"
       },
       files: [
         "dist",
-        "bin",
         "locales",
         "README.md",
         "LICENSE"
