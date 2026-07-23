@@ -13662,9 +13662,6 @@ var require_package = __commonJS({
         openai: "^6.48.0",
         tsup: "^8.5.1",
         typescript: "^7.0.2"
-      },
-      dependencies: {
-        blessed: "^0.1.81"
       }
     };
   }
@@ -13675,164 +13672,267 @@ var app_exports = {};
 __export(app_exports, {
   startTUI: () => startTUI
 });
+function clearScreen() {
+  process.stdout.write(CSI + "2J" + CSI + "H");
+}
+function moveTo(x, y) {
+  process.stdout.write(CSI + `${y + 1};${x + 1}H`);
+}
+function setCursorVisible(visible) {
+  process.stdout.write(CSI + (visible ? "?25h" : "?25l"));
+}
+function drawBox(x, y, width, height, title) {
+  moveTo(x, y);
+  process.stdout.write(source_default.cyan("\u250C"));
+  if (title) {
+    const titleText = ` ${title} `;
+    const padding = width - 2 - titleText.length;
+    const leftPad = Math.floor(padding / 2);
+    const rightPad = padding - leftPad;
+    process.stdout.write(source_default.cyan("\u2500".repeat(leftPad)));
+    process.stdout.write(source_default.bold.white(titleText));
+    process.stdout.write(source_default.cyan("\u2500".repeat(rightPad)));
+  } else {
+    process.stdout.write(source_default.cyan("\u2500".repeat(width - 2)));
+  }
+  process.stdout.write(source_default.cyan("\u2510"));
+  for (let i = 1; i < height - 1; i++) {
+    moveTo(x, y + i);
+    process.stdout.write(source_default.cyan("\u2502"));
+    process.stdout.write(" ".repeat(width - 2));
+    process.stdout.write(source_default.cyan("\u2502"));
+  }
+  moveTo(x, y + height - 1);
+  process.stdout.write(source_default.cyan("\u2514"));
+  process.stdout.write(source_default.cyan("\u2500".repeat(width - 2)));
+  process.stdout.write(source_default.cyan("\u2518"));
+}
+function drawText(x, y, text, color) {
+  moveTo(x, y);
+  if (color) {
+    process.stdout.write(source_default[color](text));
+  } else {
+    process.stdout.write(text);
+  }
+}
 function startTUI(config) {
   const loadedConfig = config || loadConfig();
   const agent = new Agent(loadedConfig);
-  process.stdout.write("\x1Bc");
-  printBanner(loadedConfig);
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
+  clearScreen();
+  setCursorVisible(false);
+  const headerHeight = 3;
+  const footerHeight = 3;
+  const chatHeight = termHeight - headerHeight - footerHeight - 2;
+  drawBox(0, 0, termWidth, headerHeight, "\u{1F525} XYZAI");
+  drawText(2, 1, "AI Coding Assistant", "white");
+  drawText(termWidth - 30, 1, loadedConfig.model, "gray");
+  drawBox(0, headerHeight, termWidth, chatHeight + 2);
+  drawBox(0, termHeight - footerHeight, termWidth, footerHeight);
+  drawText(2, termHeight - footerHeight + 1, loadedConfig.language === "fa" ? "\u067E\u06CC\u0627\u0645 \u062E\u0648\u062F \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F..." : "Type your message...", "gray");
+  drawText(2, termHeight - 1, "/help", "yellow");
+  drawText(10, termHeight - 1, loadedConfig.language === "fa" ? "\u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "for help", "gray");
+  const welcomeY = headerHeight + 1;
+  const welcomeMsg = loadedConfig.language === "fa" ? "\u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627." : "Hello! I'm XYZAI, your AI coding assistant.";
+  drawText(2, welcomeY, welcomeMsg, "green");
+  const helpMsg = loadedConfig.language === "fa" ? "\u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 /help \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "Type a message or /help for help";
+  drawText(2, welcomeY + 1, helpMsg, "gray");
+  setCursorVisible(true);
+  const inputY = termHeight - footerHeight + 1;
+  moveTo(2, inputY);
   const rl = readline.createInterface({
     input: process.stdin,
-    output: process.stdout
+    output: process.stdout,
+    prompt: ""
   });
-  promptUser(rl, loadedConfig);
+  const messages = [];
+  let currentY = welcomeY + 3;
+  process.stdout.write(source_default.cyan("> "));
   rl.on("line", async (input) => {
     const trimmed = input.trim();
     if (!trimmed) {
-      promptUser(rl, loadedConfig);
+      process.stdout.write(source_default.cyan("> "));
       return;
     }
     if (trimmed.startsWith("/")) {
-      handleCommand(trimmed, loadedConfig, agent, rl);
+      handleCommand(trimmed, loadedConfig, agent, rl, messages, currentY);
       return;
     }
+    clearScreen();
+    redrawUI(loadedConfig, messages, termWidth, termHeight, headerHeight, footerHeight, chatHeight);
+    messages.push({ role: "user", content: trimmed, y: currentY });
+    currentY = printMessage(currentY, "user", trimmed, termWidth);
+    const thinkingY = currentY;
+    currentY = printMessage(currentY, "thinking", loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking...", termWidth);
+    let fullResponse = "";
     const callbacks = {
       onThinking: () => {
-        process.stdout.write(source_default.yellow("  \u23F3 Thinking...\r"));
       },
       onToken: (token) => {
-        process.stdout.write(token);
+        fullResponse += token;
+        currentY = printMessage(thinkingY, "assistant", fullResponse, termWidth, true);
       },
       onToolCall: (name, args) => {
-        process.stdout.write(source_default.blue(`
-  \u{1F527} ${name}
-`));
+        currentY = printMessage(currentY, "tool", `\u{1F527} ${name}`, termWidth);
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          process.stdout.write(source_default.red(`  \u274C ${result.error}
-`));
+          currentY = printMessage(currentY, "error", `\u274C ${result.error}`, termWidth);
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
-        process.stdout.write("\n\n");
-        promptUser(rl, loadedConfig);
+        messages.push({ role: "assistant", content: response, y: thinkingY });
+        printFooter(loadedConfig, termWidth, termHeight, footerHeight);
+        process.stdout.write(source_default.cyan("> "));
       },
       onError: (error) => {
-        process.stdout.write(source_default.red(`
-  \u274C Error: ${error}
-
-`));
-        promptUser(rl, loadedConfig);
+        currentY = printMessage(currentY, "error", `\u274C Error: ${error}`, termWidth);
+        printFooter(loadedConfig, termWidth, termHeight, footerHeight);
+        process.stdout.write(source_default.cyan("> "));
       }
     };
-    process.stdout.write("\n");
     await agent.chat(trimmed, callbacks);
   });
   rl.on("close", () => {
-    console.log(source_default.gray("\n" + (loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!")));
+    setCursorVisible(true);
+    clearScreen();
+    console.log(source_default.gray(loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
     process.exit(0);
   });
   process.on("SIGINT", () => {
-    console.log(source_default.gray("\n" + (loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!")));
+    setCursorVisible(true);
+    clearScreen();
+    console.log(source_default.gray(loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
     process.exit(0);
   });
 }
-function printBanner(config) {
-  const width = 50;
-  const line = "\u2500".repeat(width);
-  console.log("");
-  console.log(source_default.cyan("  \u2554" + line + "\u2557"));
-  console.log(source_default.cyan("  \u2551") + source_default.bold.white("  \u{1F525} XYZAI") + source_default.gray(" - AI Coding Assistant") + source_default.cyan("\u2551"));
-  console.log(source_default.cyan("  \u2551") + source_default.gray("  " + config.model.padEnd(width - 2)) + source_default.cyan("\u2551"));
-  console.log(source_default.cyan("  \u255A" + line + "\u255D"));
-  console.log("");
-  if (config.language === "fa") {
-    console.log(source_default.white("  \u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627."));
-    console.log(source_default.gray("  \u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 ") + source_default.yellow("/help") + source_default.gray(" \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627"));
-  } else {
-    console.log(source_default.white("  Hello! I'm XYZAI, your AI coding assistant."));
-    console.log(source_default.gray("  Type a message or ") + source_default.yellow("/help") + source_default.gray(" for help"));
+function printMessage(y, role, content, termWidth, overwrite) {
+  const prefix = {
+    user: source_default.cyan("  \u0634\u0645\u0627: "),
+    assistant: source_default.green("  XYZAI: "),
+    thinking: source_default.yellow("  \u23F3 "),
+    tool: source_default.blue("  \u{1F527} "),
+    error: source_default.red("  \u274C "),
+    system: source_default.gray("  \u{1F4E2} ")
+  };
+  const p = prefix[role] || "  ";
+  const maxWidth = termWidth - 4;
+  const words = content.split(" ");
+  let lines = [];
+  let currentLine = "";
+  for (const word of words) {
+    if ((currentLine + " " + word).length > maxWidth) {
+      lines.push(currentLine);
+      currentLine = word;
+    } else {
+      currentLine = currentLine ? currentLine + " " + word : word;
+    }
   }
-  console.log("");
+  if (currentLine) lines.push(currentLine);
+  for (let i = 0; i < lines.length; i++) {
+    moveTo(2, y + i);
+    process.stdout.write(" ".repeat(termWidth - 4));
+    moveTo(2, y + i);
+    if (i === 0) {
+      process.stdout.write(p + lines[i]);
+    } else {
+      process.stdout.write(" ".repeat(p.length) + lines[i]);
+    }
+  }
+  return y + lines.length + 1;
 }
-function promptUser(rl, config) {
-  const prompt = config.language === "fa" ? source_default.cyan("  \u0634\u0645\u0627 \u276F ") : source_default.cyan("  You \u276F ");
-  rl.question(prompt, () => {
-  });
+function redrawUI(config, messages, termWidth, termHeight, headerHeight, footerHeight, chatHeight) {
+  clearScreen();
+  drawBox(0, 0, termWidth, headerHeight, "\u{1F525} XYZAI");
+  drawText(2, 1, "AI Coding Assistant", "white");
+  drawText(termWidth - 30, 1, config.model, "gray");
+  drawBox(0, headerHeight, termWidth, chatHeight + 2);
+  let y = headerHeight + 1;
+  for (const msg of messages) {
+    y = printMessage(y, msg.role, msg.content, termWidth);
+  }
+  printFooter(config, termWidth, termHeight, footerHeight);
 }
-function handleCommand(cmd, config, agent, rl) {
+function printFooter(config, termWidth, termHeight, footerHeight) {
+  drawBox(0, termHeight - footerHeight, termWidth, footerHeight);
+  drawText(2, termHeight - footerHeight + 1, config.language === "fa" ? "\u067E\u06CC\u0627\u0645 \u062E\u0648\u062F \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F..." : "Type your message...", "gray");
+  drawText(2, termHeight - 1, "/help", "yellow");
+  drawText(10, termHeight - 1, config.language === "fa" ? "\u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "for help", "gray");
+}
+function handleCommand(cmd, config, agent, rl, messages, currentY) {
   const parts = cmd.split(" ");
   const command = parts[0].toLowerCase();
   switch (command) {
     case "/exit":
     case "/quit":
-      console.log(source_default.gray(config.language === "fa" ? "\n  \u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "\n  Goodbye!"));
+      setCursorVisible(true);
+      clearScreen();
+      console.log(source_default.gray(config.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
       process.exit(0);
     case "/help":
-      console.log("");
-      if (config.language === "fa") {
-        console.log(source_default.bold.cyan("  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"));
-        console.log("");
-        console.log(source_default.white("  \u062F\u0633\u062A\u0648\u0631\u0627\u062A:"));
-        console.log(source_default.gray("    /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627"));
-        console.log(source_default.gray("    /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644"));
-        console.log(source_default.gray("    /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)"));
-        console.log(source_default.gray("    /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647"));
-        console.log(source_default.gray("    /exit  - \u062E\u0631\u0648\u062C"));
-        console.log("");
-        console.log(source_default.white("  \u0627\u0628\u0632\u0627\u0631\u0647\u0627:"));
-        console.log(source_default.gray("    \u2022 \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627"));
-        console.log(source_default.gray("    \u2022 \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644"));
-        console.log(source_default.gray("    \u2022 \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F"));
-        console.log(source_default.gray("    \u2022 \u0645\u0631\u0648\u0631 \u0648\u0628"));
-      } else {
-        console.log(source_default.bold.cyan("  \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550 XYZAI Help \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550"));
-        console.log("");
-        console.log(source_default.white("  Commands:"));
-        console.log(source_default.gray("    /help  - Show help"));
-        console.log(source_default.gray("    /model - Change model"));
-        console.log(source_default.gray("    /lang  - Change language (fa/en)"));
-        console.log(source_default.gray("    /clear - Clear conversation"));
-        console.log(source_default.gray("    /exit  - Exit"));
-        console.log("");
-        console.log(source_default.white("  Tools:"));
-        console.log(source_default.gray("    \u2022 Read and write files"));
-        console.log(source_default.gray("    \u2022 Execute terminal commands"));
-        console.log(source_default.gray("    \u2022 Search code"));
-        console.log(source_default.gray("    \u2022 Browse the web"));
-      }
-      console.log("");
+      const helpText = config.language === "fa" ? `=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===
+
+\u062F\u0633\u062A\u0648\u0631\u0627\u062A:
+  /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627
+  /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644
+  /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)
+  /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647
+  /exit  - \u062E\u0631\u0648\u062C
+
+\u0627\u0628\u0632\u0627\u0631\u0647\u0627:
+  \u2022 \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627
+  \u2022 \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644
+  \u2022 \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F
+  \u2022 \u0645\u0631\u0648\u0631 \u0648\u0628` : `=== XYZAI Help ===
+
+Commands:
+  /help  - Show help
+  /model - Change model
+  /lang  - Change language (fa/en)
+  /clear - Clear conversation
+  /exit  - Exit
+
+Tools:
+  \u2022 Read and write files
+  \u2022 Execute terminal commands
+  \u2022 Search code
+  \u2022 Browse the web`;
+      messages.push({ role: "system", content: helpText, y: currentY });
+      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
+      process.stdout.write(source_default.cyan("> "));
       break;
     case "/lang":
       const lang = parts[1];
       if (lang === "en" || lang === "fa") {
         config.language = lang;
         agent.setLanguage(lang);
-        console.log(source_default.green(lang === "fa" ? "\n  \u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F\n" : "\n  \u2713 Language changed to English\n"));
+        messages.push({ role: "system", content: lang === "fa" ? "\u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "\u2713 Language changed to English", y: currentY });
       } else {
-        console.log(source_default.gray("\n  Usage: /lang fa  or  /lang en\n"));
+        messages.push({ role: "system", content: "Usage: /lang fa  or  /lang en", y: currentY });
       }
+      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
+      process.stdout.write(source_default.cyan("> "));
       break;
     case "/clear":
       agent.clearConversation();
-      console.log(source_default.green(config.language === "fa" ? "\n  \u2713 \u0645\u06A9\u0627\u0644\u0645\u0647 \u067E\u0627\u06A9 \u0634\u062F\n" : "\n  \u2713 Conversation cleared\n"));
+      messages.length = 0;
+      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
+      process.stdout.write(source_default.cyan("> "));
       break;
     case "/model":
-      console.log(source_default.cyan(config.language === "fa" ? "\n  \u0645\u062F\u0644 \u0641\u0639\u0644\u06CC:" : "\n  Current model:"));
-      console.log(source_default.white(`  ${config.model}
-`));
+      messages.push({ role: "system", content: `${config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC" : "Current model"}: ${config.model}`, y: currentY });
+      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
+      process.stdout.write(source_default.cyan("> "));
       break;
     default:
-      console.log(source_default.red(config.language === "fa" ? `
-  \u274C \u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}
-` : `
-  \u274C Unknown command: ${command}
-`));
+      messages.push({ role: "error", content: config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}`, y: currentY });
+      printFooter(config, process.stdout.columns || 80, process.stdout.rows || 24, 3);
+      process.stdout.write(source_default.cyan("> "));
   }
-  promptUser(rl, config);
 }
-var readline;
+var readline, ESC, CSI;
 var init_app = __esm({
   "src/tui/app.ts"() {
     "use strict";
@@ -13840,6 +13940,8 @@ var init_app = __esm({
     init_source();
     init_agent();
     init_schema();
+    ESC = "\x1B";
+    CSI = ESC + "[";
   }
 });
 
