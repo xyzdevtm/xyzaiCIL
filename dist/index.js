@@ -9,9 +9,6 @@ var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
-var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-};
 var __export = (target, all) => {
   for (var name in all)
     __defProp(target, name, { get: all[name], enumerable: true });
@@ -32,7 +29,6 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
   isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
   mod
 ));
-var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // node_modules/chalk/source/vendor/ansi-styles/index.js
 function assembleStyles() {
@@ -13344,10 +13340,6 @@ var init_registry = __esm({
 });
 
 // src/core/session.ts
-var session_exports = {};
-__export(session_exports, {
-  SessionManager: () => SessionManager
-});
 var fs5, path6, SessionManager;
 var init_session = __esm({
   "src/core/session.ts"() {
@@ -13608,126 +13600,52 @@ Be helpful, concise, and accurate. When writing code, follow best practices.`;
   }
 });
 
-// package.json
-var require_package = __commonJS({
-  "package.json"(exports2, module2) {
-    module2.exports = {
-      name: "xyzai",
-      version: "0.1.0",
-      description: "XYZAI - AI Coding Assistant CLI with Persian support",
-      main: "dist/index.js",
-      bin: {
-        xyzai: "dist/index.js"
-      },
-      scripts: {
-        build: "tsup src/index.ts --format cjs --clean",
-        dev: "tsup src/index.ts --format cjs --watch",
-        start: "node dist/index.js",
-        test: "node test.js",
-        typecheck: "tsc --noEmit",
-        prepublishOnly: "npm run build",
-        release: "npm version patch && git push --tags"
-      },
-      repository: {
-        type: "git",
-        url: "git+https://github.com/xyzdevtm/xyzaiCIL.git"
-      },
-      bugs: {
-        url: "https://github.com/xyzdevtm/xyzaiCIL/issues"
-      },
-      homepage: "https://github.com/xyzdevtm/xyzaiCIL#readme",
-      keywords: [
-        "ai",
-        "cli",
-        "coding-assistant",
-        "persian",
-        "llm",
-        "mimo",
-        "deepseek",
-        "gemini",
-        "openai"
-      ],
-      author: "XYZAI Team",
-      license: "MIT",
-      type: "commonjs",
-      engines: {
-        node: ">=18.0.0"
-      },
-      devDependencies: {
-        "@types/node": "^26.1.1",
-        chalk: "^5.6.2",
-        commander: "^15.0.0",
-        "highlight.js": "^11.11.1",
-        marked: "^18.0.7",
-        openai: "^6.48.0",
-        tsup: "^8.5.1",
-        typescript: "^7.0.2"
-      }
-    };
-  }
-});
-
 // src/tui/app.ts
 var app_exports = {};
 __export(app_exports, {
   startTUI: () => startTUI
 });
-function getTermSize() {
-  return {
-    width: process.stdout.columns || 80,
-    height: process.stdout.rows || 24
-  };
-}
-function clearScreen() {
-  process.stdout.write("\x1B[2J");
-  process.stdout.write("\x1B[H");
-}
-function moveTo(x, y) {
-  process.stdout.write(`\x1B[${y};${x}H`);
-}
-function setCursorVisible(visible) {
-  process.stdout.write(visible ? "\x1B[?25h" : "\x1B[?25l");
-}
-function drawCentered(y, text, color) {
-  const { width } = getTermSize();
-  const x = Math.floor((width - text.length) / 2);
-  moveTo(x, y);
-  if (color && source_default[color]) {
-    process.stdout.write(source_default[color](text));
-  } else {
-    process.stdout.write(text);
-  }
-}
-function drawBox(x, y, width, height, options) {
-  const border = options?.borderColor || "cyan";
-  const borderFn = source_default[border] || source_default.cyan;
-  moveTo(x, y);
-  process.stdout.write(borderFn("\u2554" + "\u2550".repeat(width - 2) + "\u2557"));
-  for (let i = 1; i < height - 1; i++) {
-    moveTo(x, y + i);
-    process.stdout.write(borderFn("\u2551"));
-    process.stdout.write(" ".repeat(width - 2));
-    process.stdout.write(borderFn("\u2551"));
-  }
-  moveTo(x, y + height - 1);
-  process.stdout.write(borderFn("\u255A" + "\u2550".repeat(width - 2) + "\u255D"));
-}
-function drawStatusBar(config, termHeight) {
-  const { width } = getTermSize();
+function startTUI(config) {
+  const loadedConfig2 = config || loadConfig();
+  const agent = new Agent(loadedConfig2);
+  process.stdout.write("\x1B[2J\x1B[H");
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
+  const logoLines = LOGO.trim().split("\n");
+  const logoStartY = Math.floor((termHeight - logoLines.length - 10) / 2);
+  logoLines.forEach((line, i) => {
+    const x = Math.floor((termWidth - line.length) / 2);
+    process.stdout.write(`\x1B[${logoStartY + i};${x}H`);
+    process.stdout.write(source_default.yellow(line));
+  });
+  const subtitle = "AI Coding Assistant";
+  const subX = Math.floor((termWidth - subtitle.length) / 2);
+  process.stdout.write(`\x1B[${logoStartY + logoLines.length + 1};${subX}H`);
+  process.stdout.write(source_default.gray(subtitle));
+  const inputBoxWidth = Math.min(60, termWidth - 20);
+  const inputBoxX = Math.floor((termWidth - inputBoxWidth) / 2);
+  const inputBoxY = logoStartY + logoLines.length + 3;
+  process.stdout.write(`\x1B[${inputBoxY};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u2554" + "\u2550".repeat(inputBoxWidth - 2) + "\u2557"));
+  process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u2551"));
+  process.stdout.write(" ".repeat(inputBoxWidth - 2));
+  process.stdout.write(source_default.gray("\u2551"));
+  process.stdout.write(`\x1B[${inputBoxY + 2};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u255A" + "\u2550".repeat(inputBoxWidth - 2) + "\u255D"));
+  process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
+  process.stdout.write(source_default.gray("Type your message... (type / for commands)"));
   const statusY = termHeight - 1;
-  moveTo(1, statusY);
-  process.stdout.write(" ".repeat(width - 2));
-  moveTo(2, statusY);
+  process.stdout.write(`\x1B[${statusY};1H`);
+  process.stdout.write(" ".repeat(termWidth));
+  process.stdout.write(`\x1B[${statusY};2H`);
   process.stdout.write(source_default.bgCyan.black(" Build "));
   process.stdout.write(source_default.gray(" \xB7 "));
-  process.stdout.write(source_default.white(config.model));
-  moveTo(width - 8, statusY);
+  process.stdout.write(source_default.white(loadedConfig2.model));
+  process.stdout.write(`\x1B[${statusY};${termWidth - 8}H`);
   process.stdout.write(source_default.gray("0.1.0"));
-}
-function drawShortcuts(termHeight) {
-  const { width } = getTermSize();
   const shortcutsY = termHeight - 3;
-  moveTo(2, shortcutsY);
+  process.stdout.write(`\x1B[${shortcutsY};2H`);
   process.stdout.write(source_default.white("tab"));
   process.stdout.write(source_default.gray(" switch mode  "));
   process.stdout.write(source_default.white("ctrl+p"));
@@ -13738,42 +13656,13 @@ function drawShortcuts(termHeight) {
   process.stdout.write(source_default.gray(" subagent  "));
   process.stdout.write(source_default.yellow("/"));
   process.stdout.write(source_default.gray(" commands"));
-}
-function drawTip(config, termHeight) {
-  const { width } = getTermSize();
   const tipY = termHeight - 5;
-  moveTo(2, tipY);
+  process.stdout.write(`\x1B[${tipY};2H`);
   process.stdout.write(source_default.yellow("\u25CF "));
   process.stdout.write(source_default.yellow("Tip "));
-  if (config.language === "fa") {
-    process.stdout.write(source_default.gray("\u0628\u0631\u0627\u06CC \u0648\u0631\u0648\u062F /login \u0631\u0627 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 API \u062E\u0648\u062F \u0631\u0627 \u062A\u0646\u0638\u06CC\u0645 \u06A9\u0646\u06CC\u062F"));
-  } else {
-    process.stdout.write(source_default.gray("Run /login to sign in or configure your own API"));
-  }
-}
-function startTUI(config) {
-  const loadedConfig = config || loadConfig();
-  const agent = new Agent(loadedConfig);
-  const { width, height } = getTermSize();
-  clearScreen();
-  setCursorVisible(false);
-  const logoLines = XYZAI_LOGO.trim().split("\n");
-  const logoStartY = Math.floor(height / 2) - logoLines.length - 4;
-  logoLines.forEach((line, i) => {
-    drawCentered(logoStartY + i, line, "yellow");
-  });
-  drawCentered(logoStartY + logoLines.length + 1, "Xiaomi", "gray");
-  const inputBoxWidth = Math.min(60, width - 20);
-  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
-  const inputBoxY = logoStartY + logoLines.length + 3;
-  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
-  moveTo(inputBoxX + 2, inputBoxY + 1);
-  process.stdout.write(source_default.gray("Type your message... (type / for commands)"));
-  drawStatusBar(loadedConfig, height);
-  drawShortcuts(height);
-  drawTip(loadedConfig, height);
-  setCursorVisible(true);
-  moveTo(inputBoxX + 2, inputBoxY + 1);
+  process.stdout.write(source_default.gray("Run /login to sign in or configure your own API"));
+  process.stdout.write(`\x1B[?25h`);
+  process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
@@ -13783,78 +13672,100 @@ function startTUI(config) {
   rl.on("line", async (input) => {
     const trimmed = input.trim();
     if (!trimmed) {
-      moveTo(inputBoxX + 2, inputBoxY + 1);
+      process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
       return;
     }
     if (trimmed.startsWith("/")) {
-      handleCommand(trimmed, loadedConfig, agent, rl, messages);
+      handleCommand(trimmed, loadedConfig2, agent, rl, messages, termWidth, termHeight);
       return;
     }
-    clearScreen();
-    setCursorVisible(false);
-    drawCentered(2, "\u{1F525} XYZAI", "cyan");
-    drawCentered(3, loadedConfig.model, "gray");
-    let y = 5;
+    process.stdout.write("\x1B[2J\x1B[H");
+    process.stdout.write(`\x1B[1;2H`);
+    process.stdout.write(source_default.cyan("\u{1F525} XYZAI"));
+    process.stdout.write(source_default.gray(" | "));
+    process.stdout.write(source_default.white(loadedConfig2.model));
+    let y = 3;
     for (const msg of messages) {
-      y = printMessage(y, msg.role, msg.content, width);
+      y = printMessage(y, msg.role, msg.content, termWidth);
     }
     messages.push({ role: "user", content: trimmed });
-    y = printMessage(y, "user", trimmed, width);
+    y = printMessage(y, "user", trimmed, termWidth);
     const thinkingY = y;
-    y = printMessage(y, "thinking", loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking...", width);
-    drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
-    drawStatusBar(loadedConfig, height);
-    drawShortcuts(height);
-    drawTip(loadedConfig, height);
+    y = printMessage(y, "thinking", loadedConfig2.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking...", termWidth);
+    process.stdout.write(`\x1B[${inputBoxY};${inputBoxX}H`);
+    process.stdout.write(source_default.gray("\u2554" + "\u2550".repeat(inputBoxWidth - 2) + "\u2557"));
+    process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX}H`);
+    process.stdout.write(source_default.gray("\u2551"));
+    process.stdout.write(" ".repeat(inputBoxWidth - 2));
+    process.stdout.write(source_default.gray("\u2551"));
+    process.stdout.write(`\x1B[${inputBoxY + 2};${inputBoxX}H`);
+    process.stdout.write(source_default.gray("\u255A" + "\u2550".repeat(inputBoxWidth - 2) + "\u255D"));
+    process.stdout.write(`\x1B[${statusY};1H`);
+    process.stdout.write(" ".repeat(termWidth));
+    process.stdout.write(`\x1B[${statusY};2H`);
+    process.stdout.write(source_default.bgCyan.black(" Build "));
+    process.stdout.write(source_default.gray(" \xB7 "));
+    process.stdout.write(source_default.white(loadedConfig2.model));
+    process.stdout.write(`\x1B[${statusY};${termWidth - 8}H`);
+    process.stdout.write(source_default.gray("0.1.0"));
     let fullResponse = "";
     const callbacks = {
       onThinking: () => {
       },
       onToken: (token) => {
         fullResponse += token;
-        printMessage(thinkingY, "assistant", fullResponse, width, true);
+        printMessage(thinkingY, "assistant", fullResponse, termWidth, true);
       },
       onToolCall: (name, args) => {
-        y = printMessage(y, "tool", `\u{1F527} ${name}`, width);
+        y = printMessage(y, "tool", `\u{1F527} ${name}`, termWidth);
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          y = printMessage(y, "error", `\u274C ${result.error}`, width);
+          y = printMessage(y, "error", `\u274C ${result.error}`, termWidth);
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
         messages.push({ role: "assistant", content: response });
-        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
-        drawStatusBar(loadedConfig, height);
-        setCursorVisible(true);
-        moveTo(inputBoxX + 2, inputBoxY + 1);
+        process.stdout.write(`\x1B[${inputBoxY};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u2554" + "\u2550".repeat(inputBoxWidth - 2) + "\u2557"));
+        process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u2551"));
+        process.stdout.write(" ".repeat(inputBoxWidth - 2));
+        process.stdout.write(source_default.gray("\u2551"));
+        process.stdout.write(`\x1B[${inputBoxY + 2};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u255A" + "\u2550".repeat(inputBoxWidth - 2) + "\u255D"));
+        process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
       },
       onError: (error) => {
-        y = printMessage(y, "error", `\u274C Error: ${error}`, width);
-        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
-        drawStatusBar(loadedConfig, height);
-        setCursorVisible(true);
-        moveTo(inputBoxX + 2, inputBoxY + 1);
+        y = printMessage(y, "error", `\u274C Error: ${error}`, termWidth);
+        process.stdout.write(`\x1B[${inputBoxY};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u2554" + "\u2550".repeat(inputBoxWidth - 2) + "\u2557"));
+        process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u2551"));
+        process.stdout.write(" ".repeat(inputBoxWidth - 2));
+        process.stdout.write(source_default.gray("\u2551"));
+        process.stdout.write(`\x1B[${inputBoxY + 2};${inputBoxX}H`);
+        process.stdout.write(source_default.gray("\u255A" + "\u2550".repeat(inputBoxWidth - 2) + "\u255D"));
+        process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
       }
     };
     await agent.chat(trimmed, callbacks);
   });
   rl.on("close", () => {
-    setCursorVisible(true);
-    clearScreen();
-    console.log(source_default.gray(loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
+    process.stdout.write("\x1B[?25h");
+    process.stdout.write("\x1B[2J\x1B[H");
+    console.log(source_default.gray(loadedConfig2.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
     process.exit(0);
   });
   process.on("SIGINT", () => {
-    setCursorVisible(true);
-    clearScreen();
-    console.log(source_default.gray(loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
+    process.stdout.write("\x1B[?25h");
+    process.stdout.write("\x1B[2J\x1B[H");
+    console.log(source_default.gray(loadedConfig2.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
     process.exit(0);
   });
 }
 function printMessage(y, role, content, termWidth, overwrite) {
-  const { width } = getTermSize();
   const prefix = {
     user: source_default.cyan("You: "),
     assistant: source_default.green("XYZAI: "),
@@ -13863,7 +13774,7 @@ function printMessage(y, role, content, termWidth, overwrite) {
     error: source_default.red("\u274C ")
   };
   const p = prefix[role] || "";
-  const maxWidth = width - 8;
+  const maxWidth = termWidth - 8;
   const words = content.split(" ");
   let lines = [];
   let currentLine = "";
@@ -13877,9 +13788,9 @@ function printMessage(y, role, content, termWidth, overwrite) {
   }
   if (currentLine) lines.push(currentLine);
   for (let i = 0; i < lines.length; i++) {
-    moveTo(4, y + i);
-    process.stdout.write(" ".repeat(width - 8));
-    moveTo(4, y + i);
+    process.stdout.write(`\x1B[${y + i};4H`);
+    process.stdout.write(" ".repeat(termWidth - 8));
+    process.stdout.write(`\x1B[${y + i};4H`);
     if (i === 0) {
       process.stdout.write(p + lines[i]);
     } else {
@@ -13888,45 +13799,21 @@ function printMessage(y, role, content, termWidth, overwrite) {
   }
   return y + lines.length + 1;
 }
-function handleCommand(cmd, config, agent, rl, messages) {
+function handleCommand(cmd, config, agent, rl, messages, termWidth, termHeight) {
   const parts = cmd.split(" ");
   const command = parts[0].toLowerCase();
   switch (command) {
     case "/exit":
     case "/quit":
-      setCursorVisible(true);
-      clearScreen();
+      process.stdout.write("\x1B[?25h");
+      process.stdout.write("\x1B[2J\x1B[H");
       console.log(source_default.gray(config.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
       process.exit(0);
     case "/help":
-      const helpText = config.language === "fa" ? `=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===
-
-\u062F\u0633\u062A\u0648\u0631\u0627\u062A:
-  /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627
-  /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644
-  /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)
-  /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647
-  /exit  - \u062E\u0631\u0648\u062C
-
-\u0627\u0628\u0632\u0627\u0631\u0647\u0627:
-  \u2022 \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627
-  \u2022 \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644
-  \u2022 \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F
-  \u2022 \u0645\u0631\u0648\u0631 \u0648\u0628` : `=== XYZAI Help ===
-
-Commands:
-  /help  - Show help
-  /model - Change model
-  /lang  - Change language (fa/en)
-  /clear - Clear conversation
-  /exit  - Exit
-
-Tools:
-  \u2022 Read and write files
-  \u2022 Execute terminal commands
-  \u2022 Search code
-  \u2022 Browse the web`;
-      messages.push({ role: "system", content: helpText });
+      messages.push({
+        role: "system",
+        content: config.language === "fa" ? "=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===\n\n\u062F\u0633\u062A\u0648\u0631\u0627\u062A:\n  /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627\n  /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644\n  /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646\n  /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647\n  /exit  - \u062E\u0631\u0648\u062C\n\n\u0627\u0628\u0632\u0627\u0631\u0647\u0627:\n  \u2022 \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627\n  \u2022 \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644\n  \u2022 \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F\n  \u2022 \u0645\u0631\u0648\u0631 \u0648\u0628" : "=== XYZAI Help ===\n\nCommands:\n  /help  - Show help\n  /model - Change model\n  /lang  - Change language\n  /clear - Clear conversation\n  /exit  - Exit\n\nTools:\n  \u2022 Read and write files\n  \u2022 Execute terminal commands\n  \u2022 Search code\n  \u2022 Browse the web"
+      });
       break;
     case "/lang":
       const lang = parts[1];
@@ -13934,8 +13821,6 @@ Tools:
         config.language = lang;
         agent.setLanguage(lang);
         messages.push({ role: "system", content: lang === "fa" ? "\u2713 \u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "\u2713 Language changed to English" });
-      } else {
-        messages.push({ role: "system", content: "Usage: /lang fa  or  /lang en" });
       }
       break;
     case "/clear":
@@ -13948,26 +13833,29 @@ Tools:
     default:
       messages.push({ role: "error", content: config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}` });
   }
-  clearScreen();
-  setCursorVisible(false);
-  const { width, height } = getTermSize();
-  drawCentered(2, "\u{1F525} XYZAI", "cyan");
-  drawCentered(3, config.model, "gray");
-  let y = 5;
+  process.stdout.write("\x1B[2J\x1B[H");
+  process.stdout.write(`\x1B[1;2H`);
+  process.stdout.write(source_default.cyan("\u{1F525} XYZAI"));
+  process.stdout.write(source_default.gray(" | "));
+  process.stdout.write(source_default.white(loadedConfig.model));
+  let y = 3;
   for (const msg of messages) {
-    y = printMessage(y, msg.role, msg.content, width);
+    y = printMessage(y, msg.role, msg.content, termWidth);
   }
-  const inputBoxWidth = Math.min(60, width - 20);
-  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
-  const inputBoxY = height - 8;
-  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: "gray" });
-  drawStatusBar(config, height);
-  drawShortcuts(height);
-  drawTip(config, height);
-  setCursorVisible(true);
-  moveTo(inputBoxX + 2, inputBoxY + 1);
+  const inputBoxWidth = Math.min(60, termWidth - 20);
+  const inputBoxX = Math.floor((termWidth - inputBoxWidth) / 2);
+  const inputBoxY = termHeight - 8;
+  process.stdout.write(`\x1B[${inputBoxY};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u2554" + "\u2550".repeat(inputBoxWidth - 2) + "\u2557"));
+  process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u2551"));
+  process.stdout.write(" ".repeat(inputBoxWidth - 2));
+  process.stdout.write(source_default.gray("\u2551"));
+  process.stdout.write(`\x1B[${inputBoxY + 2};${inputBoxX}H`);
+  process.stdout.write(source_default.gray("\u255A" + "\u2550".repeat(inputBoxWidth - 2) + "\u255D"));
+  process.stdout.write(`\x1B[${inputBoxY + 1};${inputBoxX + 2}H`);
 }
-var readline, XYZAI_LOGO;
+var readline, LOGO;
 var init_app = __esm({
   "src/tui/app.ts"() {
     "use strict";
@@ -13975,14 +13863,19 @@ var init_app = __esm({
     init_source();
     init_agent();
     init_schema();
-    XYZAI_LOGO = `
-    \u2593\u2588\u2588\u2588\u2588\u2588\u2584\u2584\u2584\u2588\u2588\u2588\u2588\u2588\u2593
-    \u2592\u2588\u2588\u2580 \u2592\u2588\u2588\u2593 \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592
-    \u2591\u2588\u2588   \u2592\u2593\u2588\u2588\u2591 \u2592\u2588\u2588\u2591 \u2592\u2588\u2588\u2591
-    \u2591\u2588\u2588\u2593  \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592 \u2592\u2588\u2588\u2592
-    \u2591 \u2592\u2593\u2593\u2593\u2591\u2588\u2588\u2592 \u2591\u2588\u2588\u2588\u2588\u2588\u2588\u2592\u2591
-       \u2591\u2592\u2588\u2588\u2588\u2588\u2588\u2588\u2591\u2591   \u2591\u2592\u2593\u2593\u2593\u2591
-`;
+    LOGO = `
+  \u2588\u2588\u2557  \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2557  \u2588\u2588\u2557
+  \u255A\u2588\u2588\u2557\u2588\u2588\u2554\u255D\u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u255A\u2588\u2588\u2557\u2588\u2588\u2554\u255D
+   \u255A\u2588\u2588\u2588\u2554\u255D \u2588\u2588\u2551   \u2588\u2588\u2551 \u255A\u2588\u2588\u2588\u2554\u255D
+   \u2588\u2588\u2554\u2588\u2588\u2557 \u2588\u2588\u2551   \u2588\u2588\u2551 \u2588\u2588\u2554\u2588\u2588\u2557
+  \u2588\u2588\u2554\u255D \u2588\u2588\u2557\u255A\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D\u2588\u2588\u2554\u255D \u2588\u2588\u2557
+  \u255A\u2550\u255D  \u255A\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u255D  \u255A\u2550\u255D
+     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2557  \u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2557      \u2588\u2588\u2588\u2588\u2588\u2588\u2557 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2557  \u2588\u2588\u2557
+     \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255D\u2588\u2588\u2551  \u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u2550\u2550\u255D\u2588\u2588\u2551     \u2588\u2588\u2554\u2550\u2550\u2550\u2588\u2588\u2557\u255A\u2550\u2550\u2588\u2588\u2554\u2550\u2550\u255D\u2588\u2588\u2551  \u2588\u2588\u2551
+     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2557  \u2588\u2588\u2551     \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551
+     \u255A\u2550\u2550\u2550\u2550\u2588\u2588\u2551\u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551 \u2588\u2588\u2554\u2550\u2550\u255D  \u2588\u2588\u2551     \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2551   \u2588\u2588\u2554\u2550\u2550\u2588\u2588\u2551
+     \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2551\u2588\u2588\u2551  \u2588\u2588\u2551 \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2557\u255A\u2588\u2588\u2588\u2588\u2588\u2588\u2554\u255D   \u2588\u2588\u2551   \u2588\u2588\u2551  \u2588\u2588\u2551
+     \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D\u255A\u2550\u255D  \u255A\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D\u255A\u2550\u2550\u2550\u2550\u2550\u2550\u255D \u255A\u2550\u2550\u2550\u2550\u2550\u255D    \u255A\u2550\u255D   \u255A\u2550\u255D  \u255A\u2550\u255D`;
   }
 });
 
@@ -17359,8 +17252,9 @@ init_source();
 init_schema();
 init_paths();
 init_agent();
-init_registry();
-var pkg = require_package();
+var import_fs = require("fs");
+var import_path64 = require("path");
+var pkg = JSON.parse((0, import_fs.readFileSync)((0, import_path64.join)(__dirname, "..", "package.json"), "utf-8"));
 var program2 = new Command();
 program2.name("xyzai").description("XYZAI - AI Coding Assistant CLI").version(pkg.version);
 program2.command("chat").description("Start interactive chat").action(async () => {
@@ -17374,10 +17268,8 @@ program2.command("run").description("Run a single prompt (headless mode)").argum
   if (options.model) config.model = options.model;
   if (options.language) config.language = options.language;
   const agent = new Agent(config);
-  const toolRegistry = new ToolRegistry();
   console.log(source_default.cyan("\u{1F916} XYZAI"));
   console.log(source_default.gray("\u2500".repeat(40)));
-  let output = "";
   const callbacks = {
     onThinking: () => {
       process.stdout.write(source_default.yellow("\u{1F914} Thinking...\r"));
@@ -17408,7 +17300,7 @@ program2.command("run").description("Run a single prompt (headless mode)").argum
   await agent.chat(prompt, callbacks);
   process.exit(0);
 });
-program2.command("config").description("Manage configuration").option("-g, --get <key>", "Get config value").option("-s, --set <key> <value>", "Set config value").option("-l, --list", "List all config").action((options) => {
+program2.command("config").description("Manage configuration").option("-l, --list", "List all config").action((options) => {
   ensureAllDirs();
   const config = loadConfig();
   if (options.list) {
@@ -17416,12 +17308,7 @@ program2.command("config").description("Manage configuration").option("-g, --get
     console.log(JSON.stringify(config, null, 2));
     return;
   }
-  if (options.get) {
-    const value = config[options.get];
-    console.log(value !== void 0 ? JSON.stringify(value) : "Not set");
-    return;
-  }
-  console.log(source_default.gray("Use --list, --get <key>, or --set <key> <value>"));
+  console.log(source_default.gray("Use --list to show config"));
 });
 program2.command("models").description("List available models").action(() => {
   ensureAllDirs();
@@ -17435,21 +17322,6 @@ ${provider.name}:`));
       const freeTag = model.free ? source_default.green(" (FREE)") : "";
       console.log(source_default.white(`  ${provider.id}/${id} - ${model.name}${freeTag}`));
     }
-  }
-});
-program2.command("sessions").description("List recent sessions").action(() => {
-  ensureAllDirs();
-  const { SessionManager: SessionManager2 } = (init_session(), __toCommonJS(session_exports));
-  const sm = new SessionManager2();
-  const sessions = sm.list();
-  if (sessions.length === 0) {
-    console.log(source_default.gray("No sessions found."));
-    return;
-  }
-  console.log(source_default.cyan("Recent Sessions:"));
-  for (const session of sessions.slice(0, 10)) {
-    const date = new Date(session.updated).toLocaleString();
-    console.log(source_default.white(`  ${session.id} - ${session.model} - ${date}`));
   }
 });
 program2.command("lang").description("Change language").argument("[language]", "Language code (en/fa)").action((language) => {
@@ -17468,9 +17340,9 @@ program2.command("lang").description("Change language").argument("[language]", "
   saveConfig(config);
   console.log(source_default.green(`Language changed to ${language === "fa" ? "\u0641\u0627\u0631\u0633\u06CC" : "English"}`));
 });
-program2.action(() => {
+program2.action(async () => {
   ensureAllDirs();
-  const { startTUI: startTUI2 } = (init_app(), __toCommonJS(app_exports));
+  const { startTUI: startTUI2 } = await Promise.resolve().then(() => (init_app(), app_exports));
   startTUI2();
 });
 program2.parse();

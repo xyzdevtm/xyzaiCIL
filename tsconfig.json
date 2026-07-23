@@ -13,9 +13,9 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "ink",
-    "moduleResolution": "node",
+    "jsx": "react",
+    "jsxFactory": "React.createElement",
+    "moduleResolution": "bundler",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

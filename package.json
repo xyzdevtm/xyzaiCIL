@@ -2,13 +2,14 @@
   "name": "xyzai",
   "version": "0.1.0",
   "description": "XYZAI - AI Coding Assistant CLI with Persian support",
+  "type": "commonjs",
   "main": "dist/index.js",
   "bin": {
     "xyzai": "dist/index.js"
   },
   "scripts": {
-    "build": "tsup src/index.ts --format cjs --clean",
-    "dev": "tsup src/index.ts --format cjs --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
     "start": "node dist/index.js",
     "test": "node test.js",
     "typecheck": "tsc --noEmit",
@@ -36,7 +37,6 @@
   ],
   "author": "XYZAI Team",
   "license": "MIT",
-  "type": "commonjs",
   "engines": {
     "node": ">=18.0.0"
   },

@@ -1,93 +1,80 @@
 import * as readline from 'readline';
 import chalk from 'chalk';
-import { Agent, AgentCallbacks } from '../core/agent';
-import { XYZAIConfig, loadConfig } from '../config/schema';
+import { Agent, AgentCallbacks } from '../core/agent.js';
+import { XYZAIConfig, loadConfig } from '../config/schema.js';
 
-const XYZAI_LOGO = `
-    ▓█████▄▄▄█████▓
-    ▒██▀ ▒██▓ ▒██▒ ▒██▒
-    ░██   ▒▓██░ ▒██░ ▒██░
-    ░██▓  ▒██▒ ▒██▒ ▒██▒
-    ░ ▒▓▓▓░██▒ ░██████▒░
-       ░▒██████░░   ░▒▓▓▓░
-`;
+const LOGO = `
+  ██╗  ██╗ ██████╗ ██╗  ██╗
+  ╚██╗██╔╝██╔═══██╗╚██╗██╔╝
+   ╚███╔╝ ██║   ██║ ╚███╔╝
+   ██╔██╗ ██║   ██║ ██╔██╗
+  ██╔╝ ██╗╚██████╔╝██╔╝ ██╗
+  ╚═╝  ╚═╝ ╚═════╝ ╚═╝  ╚═╝
+     ███████╗██╗  ██╗ ███████╗██╗      ██████╗ ████████╗██╗  ██╗
+     ██╔════╝██║  ██║ ██╔════╝██║     ██╔═══██╗╚══██╔══╝██║  ██║
+     ███████╗███████║ █████╗  ██║     ██║   ██║   ██║   ███████║
+     ╚════██║██╔══██║ ██╔══╝  ██║     ██║   ██║   ██║   ██╔══██║
+     ███████║██║  ██║ ███████╗███████╗╚██████╔╝   ██║   ██║  ██║
+     ╚══════╝╚═╝  ╚═╝ ╚══════╝╚══════╝ ╚═════╝    ╚═╝   ╚═╝  ╚═╝`;
 
-function getTermSize(): { width: number; height: number } {
-  return {
-    width: process.stdout.columns || 80,
-    height: process.stdout.rows || 24,
-  };
-}
+export function startTUI(config?: XYZAIConfig): void {
+  const loadedConfig = config || loadConfig();
+  const agent = new Agent(loadedConfig);
 
-function clearScreen(): void {
-  process.stdout.write('\x1b[2J');
-  process.stdout.write('\x1b[H');
-}
+  process.stdout.write('\x1b[2J\x1b[H');
 
-function moveTo(x: number, y: number): void {
-  process.stdout.write(`\x1b[${y};${x}H`);
-}
+  const termWidth = process.stdout.columns || 80;
+  const termHeight = process.stdout.rows || 24;
 
-function setCursorVisible(visible: boolean): void {
-  process.stdout.write(visible ? '\x1b[?25h' : '\x1b[?25l');
-}
+  // Draw logo
+  const logoLines = LOGO.trim().split('\n');
+  const logoStartY = Math.floor((termHeight - logoLines.length - 10) / 2);
 
-function drawCentered(y: number, text: string, color?: string): void {
-  const { width } = getTermSize();
-  const x = Math.floor((width - text.length) / 2);
-  moveTo(x, y);
-  if (color && (chalk as any)[color]) {
-    process.stdout.write((chalk as any)[color](text));
-  } else {
-    process.stdout.write(text);
-  }
-}
+  logoLines.forEach((line, i) => {
+    const x = Math.floor((termWidth - line.length) / 2);
+    process.stdout.write(`\x1b[${logoStartY + i};${x}H`);
+    process.stdout.write(chalk.yellow(line));
+  });
 
-function drawBox(x: number, y: number, width: number, height: number, options?: { borderColor?: string; fillColor?: string }): void {
-  const border = options?.borderColor || 'cyan';
-  const borderFn = (chalk as any)[border] || chalk.cyan;
+  // Subtitle
+  const subtitle = 'AI Coding Assistant';
+  const subX = Math.floor((termWidth - subtitle.length) / 2);
+  process.stdout.write(`\x1b[${logoStartY + logoLines.length + 1};${subX}H`);
+  process.stdout.write(chalk.gray(subtitle));
 
-  // Top border
-  moveTo(x, y);
-  process.stdout.write(borderFn('╔' + '═'.repeat(width - 2) + '╗'));
+  // Input box
+  const inputBoxWidth = Math.min(60, termWidth - 20);
+  const inputBoxX = Math.floor((termWidth - inputBoxWidth) / 2);
+  const inputBoxY = logoStartY + logoLines.length + 3;
 
-  // Side borders
-  for (let i = 1; i < height - 1; i++) {
-    moveTo(x, y + i);
-    process.stdout.write(borderFn('║'));
-    process.stdout.write(' '.repeat(width - 2));
-    process.stdout.write(borderFn('║'));
-  }
+  // Draw input box
+  process.stdout.write(`\x1b[${inputBoxY};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('╔' + '═'.repeat(inputBoxWidth - 2) + '╗'));
+  process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('║'));
+  process.stdout.write(' '.repeat(inputBoxWidth - 2));
+  process.stdout.write(chalk.gray('║'));
+  process.stdout.write(`\x1b[${inputBoxY + 2};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('╚' + '═'.repeat(inputBoxWidth - 2) + '╝'));
 
-  // Bottom border
-  moveTo(x, y + height - 1);
-  process.stdout.write(borderFn('╚' + '═'.repeat(width - 2) + '╝'));
-}
+  // Placeholder
+  process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
+  process.stdout.write(chalk.gray('Type your message... (type / for commands)'));
 
-function drawStatusBar(config: XYZAIConfig, termHeight: number): void {
-  const { width } = getTermSize();
+  // Status bar
   const statusY = termHeight - 1;
-
-  // Status bar background
-  moveTo(1, statusY);
-  process.stdout.write(' '.repeat(width - 2));
-
-  // Left side: mode and model
-  moveTo(2, statusY);
+  process.stdout.write(`\x1b[${statusY};1H`);
+  process.stdout.write(' '.repeat(termWidth));
+  process.stdout.write(`\x1b[${statusY};2H`);
   process.stdout.write(chalk.bgCyan.black(' Build '));
   process.stdout.write(chalk.gray(' · '));
-  process.stdout.write(chalk.white(config.model));
-
-  // Right side: version
-  moveTo(width - 8, statusY);
+  process.stdout.write(chalk.white(loadedConfig.model));
+  process.stdout.write(`\x1b[${statusY};${termWidth - 8}H`);
   process.stdout.write(chalk.gray('0.1.0'));
-}
 
-function drawShortcuts(termHeight: number): void {
-  const { width } = getTermSize();
+  // Shortcuts
   const shortcutsY = termHeight - 3;
-
-  moveTo(2, shortcutsY);
+  process.stdout.write(`\x1b[${shortcutsY};2H`);
   process.stdout.write(chalk.white('tab'));
   process.stdout.write(chalk.gray(' switch mode  '));
   process.stdout.write(chalk.white('ctrl+p'));
@@ -98,116 +85,80 @@ function drawShortcuts(termHeight: number): void {
   process.stdout.write(chalk.gray(' subagent  '));
   process.stdout.write(chalk.yellow('/'));
   process.stdout.write(chalk.gray(' commands'));
-}
-
-function drawTip(config: XYZAIConfig, termHeight: number): void {
-  const { width } = getTermSize();
-  const tipY = termHeight - 5;
-
-  moveTo(2, tipY);
-  process.stdout.write(chalk.yellow('● '));
-  process.stdout.write(chalk.yellow('Tip '));
-  if (config.language === 'fa') {
-    process.stdout.write(chalk.gray('برای ورود /login را تایپ کنید یا API خود را تنظیم کنید'));
-  } else {
-    process.stdout.write(chalk.gray('Run /login to sign in or configure your own API'));
-  }
-}
-
-export function startTUI(config?: XYZAIConfig): void {
-  const loadedConfig = config || loadConfig();
-  const agent = new Agent(loadedConfig);
-  const { width, height } = getTermSize();
-
-  // Clear and hide cursor
-  clearScreen();
-  setCursorVisible(false);
-
-  // Draw logo
-  const logoLines = XYZAI_LOGO.trim().split('\n');
-  const logoStartY = Math.floor(height / 2) - logoLines.length - 4;
-  logoLines.forEach((line, i) => {
-    drawCentered(logoStartY + i, line, 'yellow');
-  });
-
-  // Draw "Xiaomi" subtitle
-  drawCentered(logoStartY + logoLines.length + 1, 'Xiaomi', 'gray');
-
-  // Draw input box
-  const inputBoxWidth = Math.min(60, width - 20);
-  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
-  const inputBoxY = logoStartY + logoLines.length + 3;
-
-  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: 'gray' });
-
-  // Input placeholder
-  moveTo(inputBoxX + 2, inputBoxY + 1);
-  process.stdout.write(chalk.gray('Type your message... (type / for commands)'));
-
-  // Status bar
-  drawStatusBar(loadedConfig, height);
-
-  // Shortcuts
-  drawShortcuts(height);
 
   // Tip
-  drawTip(loadedConfig, height);
+  const tipY = termHeight - 5;
+  process.stdout.write(`\x1b[${tipY};2H`);
+  process.stdout.write(chalk.yellow('● '));
+  process.stdout.write(chalk.yellow('Tip '));
+  process.stdout.write(chalk.gray('Run /login to sign in or configure your own API'));
 
-  // Show cursor for input
-  setCursorVisible(true);
-  moveTo(inputBoxX + 2, inputBoxY + 1);
+  // Position cursor for input
+  process.stdout.write(`\x1b[?25h`);
+  process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
 
-  // Create readline interface
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     prompt: '',
   });
 
-  // Messages storage
   const messages: Array<{ role: string; content: string }> = [];
 
-  // Handle input
   rl.on('line', async (input: string) => {
     const trimmed = input.trim();
     if (!trimmed) {
-      moveTo(inputBoxX + 2, inputBoxY + 1);
+      process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
       return;
     }
 
-    // Handle commands
     if (trimmed.startsWith('/')) {
-      handleCommand(trimmed, loadedConfig, agent, rl, messages);
+      handleCommand(trimmed, loadedConfig, agent, rl, messages, termWidth, termHeight);
       return;
     }
 
-    // Clear and redraw for new message
-    clearScreen();
-    setCursorVisible(false);
+    // Clear and show chat
+    process.stdout.write('\x1b[2J\x1b[H');
 
-    // Show header
-    drawCentered(2, '🔥 XYZAI', 'cyan');
-    drawCentered(3, loadedConfig.model, 'gray');
+    // Header
+    process.stdout.write(`\x1b[1;2H`);
+    process.stdout.write(chalk.cyan('🔥 XYZAI'));
+    process.stdout.write(chalk.gray(' | '));
+    process.stdout.write(chalk.white(loadedConfig.model));
 
-    // Show messages
-    let y = 5;
+    // Messages
+    let y = 3;
     for (const msg of messages) {
-      y = printMessage(y, msg.role, msg.content, width);
+      y = printMessage(y, msg.role, msg.content, termWidth);
     }
 
-    // Add user message
+    // User message
     messages.push({ role: 'user', content: trimmed });
-    y = printMessage(y, 'user', trimmed, width);
+    y = printMessage(y, 'user', trimmed, termWidth);
 
-    // Show thinking
+    // Thinking
     const thinkingY = y;
-    y = printMessage(y, 'thinking', loadedConfig.language === 'fa' ? 'در حال فکر کردن...' : 'Thinking...', width);
+    y = printMessage(y, 'thinking', loadedConfig.language === 'fa' ? 'در حال فکر کردن...' : 'Thinking...', termWidth);
 
-    // Draw input box at bottom
-    drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: 'gray' });
-    drawStatusBar(loadedConfig, height);
-    drawShortcuts(height);
-    drawTip(loadedConfig, height);
+    // Input box
+    process.stdout.write(`\x1b[${inputBoxY};${inputBoxX}H`);
+    process.stdout.write(chalk.gray('╔' + '═'.repeat(inputBoxWidth - 2) + '╗'));
+    process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX}H`);
+    process.stdout.write(chalk.gray('║'));
+    process.stdout.write(' '.repeat(inputBoxWidth - 2));
+    process.stdout.write(chalk.gray('║'));
+    process.stdout.write(`\x1b[${inputBoxY + 2};${inputBoxX}H`);
+    process.stdout.write(chalk.gray('╚' + '═'.repeat(inputBoxWidth - 2) + '╝'));
+
+    // Status bar
+    process.stdout.write(`\x1b[${statusY};1H`);
+    process.stdout.write(' '.repeat(termWidth));
+    process.stdout.write(`\x1b[${statusY};2H`);
+    process.stdout.write(chalk.bgCyan.black(' Build '));
+    process.stdout.write(chalk.gray(' · '));
+    process.stdout.write(chalk.white(loadedConfig.model));
+    process.stdout.write(`\x1b[${statusY};${termWidth - 8}H`);
+    process.stdout.write(chalk.gray('0.1.0'));
 
     // Call AI
     let fullResponse = '';
@@ -215,31 +166,41 @@ export function startTUI(config?: XYZAIConfig): void {
       onThinking: () => {},
       onToken: (token) => {
         fullResponse += token;
-        printMessage(thinkingY, 'assistant', fullResponse, width, true);
+        printMessage(thinkingY, 'assistant', fullResponse, termWidth, true);
       },
       onToolCall: (name, args) => {
-        y = printMessage(y, 'tool', `🔧 ${name}`, width);
+        y = printMessage(y, 'tool', `🔧 ${name}`, termWidth);
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          y = printMessage(y, 'error', `❌ ${result.error}`, width);
+          y = printMessage(y, 'error', `❌ ${result.error}`, termWidth);
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
         messages.push({ role: 'assistant', content: response });
         // Redraw input box
-        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: 'gray' });
-        drawStatusBar(loadedConfig, height);
-        setCursorVisible(true);
-        moveTo(inputBoxX + 2, inputBoxY + 1);
+        process.stdout.write(`\x1b[${inputBoxY};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('╔' + '═'.repeat(inputBoxWidth - 2) + '╗'));
+        process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('║'));
+        process.stdout.write(' '.repeat(inputBoxWidth - 2));
+        process.stdout.write(chalk.gray('║'));
+        process.stdout.write(`\x1b[${inputBoxY + 2};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('╚' + '═'.repeat(inputBoxWidth - 2) + '╝'));
+        process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
       },
       onError: (error) => {
-        y = printMessage(y, 'error', `❌ Error: ${error}`, width);
-        drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: 'gray' });
-        drawStatusBar(loadedConfig, height);
-        setCursorVisible(true);
-        moveTo(inputBoxX + 2, inputBoxY + 1);
+        y = printMessage(y, 'error', `❌ Error: ${error}`, termWidth);
+        process.stdout.write(`\x1b[${inputBoxY};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('╔' + '═'.repeat(inputBoxWidth - 2) + '╗'));
+        process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('║'));
+        process.stdout.write(' '.repeat(inputBoxWidth - 2));
+        process.stdout.write(chalk.gray('║'));
+        process.stdout.write(`\x1b[${inputBoxY + 2};${inputBoxX}H`);
+        process.stdout.write(chalk.gray('╚' + '═'.repeat(inputBoxWidth - 2) + '╝'));
+        process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
       },
     };
 
@@ -247,22 +208,21 @@ export function startTUI(config?: XYZAIConfig): void {
   });
 
   rl.on('close', () => {
-    setCursorVisible(true);
-    clearScreen();
+    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[2J\x1b[H');
     console.log(chalk.gray(loadedConfig.language === 'fa' ? 'خداحافظ!' : 'Goodbye!'));
     process.exit(0);
   });
 
   process.on('SIGINT', () => {
-    setCursorVisible(true);
-    clearScreen();
+    process.stdout.write('\x1b[?25h');
+    process.stdout.write('\x1b[2J\x1b[H');
     console.log(chalk.gray(loadedConfig.language === 'fa' ? 'خداحافظ!' : 'Goodbye!'));
     process.exit(0);
   });
 }
 
 function printMessage(y: number, role: string, content: string, termWidth: number, overwrite?: number): number {
-  const { width } = getTermSize();
   const prefix: Record<string, string> = {
     user: chalk.cyan('You: '),
     assistant: chalk.green('XYZAI: '),
@@ -272,7 +232,7 @@ function printMessage(y: number, role: string, content: string, termWidth: numbe
   };
 
   const p = prefix[role] || '';
-  const maxWidth = width - 8;
+  const maxWidth = termWidth - 8;
 
   // Word wrap
   const words = content.split(' ');
@@ -291,9 +251,9 @@ function printMessage(y: number, role: string, content: string, termWidth: numbe
 
   // Print lines
   for (let i = 0; i < lines.length; i++) {
-    moveTo(4, y + i);
-    process.stdout.write(' '.repeat(width - 8));
-    moveTo(4, y + i);
+    process.stdout.write(`\x1b[${y + i};4H`);
+    process.stdout.write(' '.repeat(termWidth - 8));
+    process.stdout.write(`\x1b[${y + i};4H`);
     if (i === 0) {
       process.stdout.write(p + lines[i]);
     } else {
@@ -304,50 +264,23 @@ function printMessage(y: number, role: string, content: string, termWidth: numbe
   return y + lines.length + 1;
 }
 
-function handleCommand(cmd: string, config: XYZAIConfig, agent: any, rl: readline.Interface, messages: Array<{ role: string; content: string }>): void {
+function handleCommand(cmd: string, config: XYZAIConfig, agent: any, rl: readline.Interface, messages: Array<{ role: string; content: string }>, termWidth: number, termHeight: number): void {
   const parts = cmd.split(' ');
   const command = parts[0].toLowerCase();
 
   switch (command) {
     case '/exit':
     case '/quit':
-      setCursorVisible(true);
-      clearScreen();
+      process.stdout.write('\x1b[?25h');
+      process.stdout.write('\x1b[2J\x1b[H');
       console.log(chalk.gray(config.language === 'fa' ? 'خداحافظ!' : 'Goodbye!'));
       process.exit(0);
 
     case '/help':
-      const helpText = config.language === 'fa'
-        ? `=== راهنمای XYZAI ===
-
-دستورات:
-  /help  - نمایش راهنما
-  /model - تغییر مدل
-  /lang  - تغییر زبان (fa/en)
-  /clear - پاک کردن مکالمه
-  /exit  - خروج
-
-ابزارها:
-  • خواندن و نوشتن فایل‌ها
-  • اجرای دستورات ترمینال
-  • جستجوی کد
-  • مرور وب`
-        : `=== XYZAI Help ===
-
-Commands:
-  /help  - Show help
-  /model - Change model
-  /lang  - Change language (fa/en)
-  /clear - Clear conversation
-  /exit  - Exit
-
-Tools:
-  • Read and write files
-  • Execute terminal commands
-  • Search code
-  • Browse the web`;
-
-      messages.push({ role: 'system', content: helpText });
+      messages.push({ role: 'system', content: config.language === 'fa'
+        ? '=== راهنمای XYZAI ===\n\nدستورات:\n  /help  - نمایش راهنما\n  /model - تغییر مدل\n  /lang  - تغییر زبان\n  /clear - پاک کردن مکالمه\n  /exit  - خروج\n\nابزارها:\n  • خواندن و نوشتن فایل‌ها\n  • اجرای دستورات ترمینال\n  • جستجوی کد\n  • مرور وب'
+        : '=== XYZAI Help ===\n\nCommands:\n  /help  - Show help\n  /model - Change model\n  /lang  - Change language\n  /clear - Clear conversation\n  /exit  - Exit\n\nTools:\n  • Read and write files\n  • Execute terminal commands\n  • Search code\n  • Browse the web'
+      });
       break;
 
     case '/lang':
@@ -356,8 +289,6 @@ Tools:
         config.language = lang;
         agent.setLanguage(lang);
         messages.push({ role: 'system', content: lang === 'fa' ? '✓ زبان به فارسی تغییر کرد' : '✓ Language changed to English' });
-      } else {
-        messages.push({ role: 'system', content: 'Usage: /lang fa  or  /lang en' });
       }
       break;
 
@@ -375,27 +306,29 @@ Tools:
   }
 
   // Redraw
-  clearScreen();
-  setCursorVisible(false);
-  const { width, height } = getTermSize();
+  process.stdout.write('\x1b[2J\x1b[H');
+  process.stdout.write(`\x1b[1;2H`);
+  process.stdout.write(chalk.cyan('🔥 XYZAI'));
+  process.stdout.write(chalk.gray(' | '));
+  process.stdout.write(chalk.white(loadedConfig.model));
 
-  drawCentered(2, '🔥 XYZAI', 'cyan');
-  drawCentered(3, config.model, 'gray');
-
-  let y = 5;
+  let y = 3;
   for (const msg of messages) {
-    y = printMessage(y, msg.role, msg.content, width);
+    y = printMessage(y, msg.role, msg.content, termWidth);
   }
 
-  const inputBoxWidth = Math.min(60, width - 20);
-  const inputBoxX = Math.floor((width - inputBoxWidth) / 2);
-  const inputBoxY = height - 8;
+  const inputBoxWidth = Math.min(60, termWidth - 20);
+  const inputBoxX = Math.floor((termWidth - inputBoxWidth) / 2);
+  const inputBoxY = termHeight - 8;
 
-  drawBox(inputBoxX, inputBoxY, inputBoxWidth, 3, { borderColor: 'gray' });
-  drawStatusBar(config, height);
-  drawShortcuts(height);
-  drawTip(config, height);
+  process.stdout.write(`\x1b[${inputBoxY};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('╔' + '═'.repeat(inputBoxWidth - 2) + '╗'));
+  process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('║'));
+  process.stdout.write(' '.repeat(inputBoxWidth - 2));
+  process.stdout.write(chalk.gray('║'));
+  process.stdout.write(`\x1b[${inputBoxY + 2};${inputBoxX}H`);
+  process.stdout.write(chalk.gray('╚' + '═'.repeat(inputBoxWidth - 2) + '╝'));
 
-  setCursorVisible(true);
-  moveTo(inputBoxX + 2, inputBoxY + 1);
+  process.stdout.write(`\x1b[${inputBoxY + 1};${inputBoxX + 2}H`);
 }

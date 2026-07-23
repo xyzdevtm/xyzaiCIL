@@ -2,12 +2,13 @@
 
 import { Command } from 'commander';
 import chalk from 'chalk';
-import { loadConfig, saveConfig, XYZAIConfig } from './config/schema';
+import { loadConfig, saveConfig } from './config/schema';
 import { ensureAllDirs } from './utils/paths';
-import { Agent, AgentCallbacks } from './core/agent';
-import { ToolRegistry, ToolContext } from './tools/registry';
+import { Agent } from './core/agent';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
-const pkg = require('../package.json');
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', 'package.json'), 'utf-8'));
 
 const program = new Command();
 
@@ -22,7 +23,7 @@ program
   .description('Start interactive chat')
   .action(async () => {
     ensureAllDirs();
-    const { startTUI } = await import('./tui/app');
+    const { startTUI } = await import('./tui/app.js');
     startTUI();
   });
 
@@ -41,33 +42,30 @@ program
     if (options.language) config.language = options.language;
 
     const agent = new Agent(config);
-    const toolRegistry = new ToolRegistry();
 
     console.log(chalk.cyan('🤖 XYZAI'));
     console.log(chalk.gray('─'.repeat(40)));
 
-    let output = '';
-
-    const callbacks: AgentCallbacks = {
+    const callbacks = {
       onThinking: () => {
         process.stdout.write(chalk.yellow('🤔 Thinking...\r'));
       },
-      onToken: (token) => {
+      onToken: (token: string) => {
         process.stdout.write(token);
       },
-      onToolCall: (name, args) => {
+      onToolCall: (name: string, args: any) => {
         process.stdout.write(chalk.gray(`\n🔧 ${name}\n`));
       },
-      onToolResult: (name, result) => {
+      onToolResult: (name: string, result: any) => {
         if (result.error) {
           console.log(chalk.red(`❌ ${result.error}`));
         }
       },
       onPermission: async () => true,
-      onDone: (response) => {
+      onDone: (response: string) => {
         console.log('');
       },
-      onError: (error) => {
+      onError: (error: string) => {
         console.error(chalk.red(`\n❌ Error: ${error}`));
         process.exit(1);
       },
@@ -81,8 +79,6 @@ program
 program
   .command('config')
   .description('Manage configuration')
-  .option('-g, --get <key>', 'Get config value')
-  .option('-s, --set <key> <value>', 'Set config value')
   .option('-l, --list', 'List all config')
   .action((options: any) => {
     ensureAllDirs();
@@ -94,13 +90,7 @@ program
       return;
     }
 
-    if (options.get) {
-      const value = (config as any)[options.get];
-      console.log(value !== undefined ? JSON.stringify(value) : 'Not set');
-      return;
-    }
-
-    console.log(chalk.gray('Use --list, --get <key>, or --set <key> <value>'));
+    console.log(chalk.gray('Use --list to show config'));
   });
 
 // List models
@@ -120,28 +110,6 @@ program
         const freeTag = model.free ? chalk.green(' (FREE)') : '';
         console.log(chalk.white(`  ${provider.id}/${id} - ${model.name}${freeTag}`));
       }
-    }
-  });
-
-// Session management
-program
-  .command('sessions')
-  .description('List recent sessions')
-  .action(() => {
-    ensureAllDirs();
-    const { SessionManager } = require('./core/session');
-    const sm = new SessionManager();
-    const sessions = sm.list();
-
-    if (sessions.length === 0) {
-      console.log(chalk.gray('No sessions found.'));
-      return;
-    }
-
-    console.log(chalk.cyan('Recent Sessions:'));
-    for (const session of sessions.slice(0, 10)) {
-      const date = new Date(session.updated).toLocaleString();
-      console.log(chalk.white(`  ${session.id} - ${session.model} - ${date}`));
     }
   });
 
@@ -172,9 +140,9 @@ program
 
 // Default command - launch TUI
 program
-  .action(() => {
+  .action(async () => {
     ensureAllDirs();
-    const { startTUI } = require('./tui/app');
+    const { startTUI } = await import('./tui/app.js');
     startTUI();
   });
 
