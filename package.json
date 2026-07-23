@@ -20,17 +20,16 @@
     "test": "node test.js",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "prepare": "npm run build",
     "release": "npm version patch && git push --tags"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/xyzai/xyzai.git"
+    "url": "git+https://github.com/xyzdevtm/xyzaiCIL.git"
   },
   "bugs": {
-    "url": "https://github.com/xyzai/xyzai/issues"
+    "url": "https://github.com/xyzdevtm/xyzaiCIL/issues"
   },
-  "homepage": "https://github.com/xyzai/xyzai#readme",
+  "homepage": "https://github.com/xyzdevtm/xyzaiCIL#readme",
   "keywords": [
     "ai",
     "cli",

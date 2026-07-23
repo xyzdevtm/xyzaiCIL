@@ -1,5 +1,4 @@
 node_modules/
-dist/
 *.js.map
 *.d.ts
 !src/**/*.d.ts
@@ -7,3 +6,4 @@ dist/
 .env.*
 .DS_Store
 Thumbs.db
+xyzai-*.tgz
