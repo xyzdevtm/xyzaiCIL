@@ -587,14 +587,6 @@ var init_paths = __esm({
 });
 
 // src/config/schema.ts
-var schema_exports = {};
-__export(schema_exports, {
-  getConfigPath: () => getConfigPath,
-  getProviderById: () => getProviderById,
-  loadConfig: () => loadConfig,
-  parseModelString: () => parseModelString,
-  saveConfig: () => saveConfig
-});
 function getConfigPath() {
   return path3.join(getConfigDir(), "config.json");
 }
@@ -699,8 +691,8 @@ var init_schema = __esm({
       { tool: "websearch", pattern: "*", action: "allow" }
     ];
     DEFAULT_CONFIG = {
-      model: "mimo/mimo-auto",
-      provider: "mimo",
+      model: "deepseek/deepseek-chat",
+      provider: "deepseek",
       language: "en",
       providers: DEFAULT_PROVIDERS,
       permissions: DEFAULT_PERMISSIONS,
@@ -13301,8 +13293,8 @@ var init_registry = __esm({
       async execute(args, ctx) {
         const question = args.question;
         const options = args.options;
-        const readline2 = await import("readline");
-        const rl = readline2.createInterface({ input: process.stdin, output: process.stdout });
+        const readline = await import("readline");
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         return new Promise((resolve) => {
           console.log(source_default.cyan(`
 \u2753 ${question}`));
@@ -13627,12 +13619,6 @@ var require_package = __commonJS({
       bin: {
         xyzai: "dist/index.js"
       },
-      files: [
-        "dist",
-        "locales",
-        "README.md",
-        "LICENSE"
-      ],
       scripts: {
         build: "tsup src/index.ts --format cjs --clean",
         dev: "tsup src/index.ts --format cjs --watch",
@@ -13676,6 +13662,9 @@ var require_package = __commonJS({
         openai: "^6.48.0",
         tsup: "^8.5.1",
         typescript: "^7.0.2"
+      },
+      dependencies: {
+        blessed: "^0.1.81"
       }
     };
   }
@@ -13687,117 +13676,273 @@ __export(app_exports, {
   startTUI: () => startTUI
 });
 function startTUI(config) {
-  const { loadConfig: loadConfig2 } = (init_schema(), __toCommonJS(schema_exports));
-  const loadedConfig = config || loadConfig2();
+  const loadedConfig = config || loadConfig();
   const agent = new Agent(loadedConfig);
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-    prompt: source_default.cyan("xyzai \u276F ")
+  const screen2 = blessed.screen({
+    smartCSR: true,
+    title: "XYZAI - AI Coding Assistant"
   });
-  console.log("");
-  console.log(source_default.bold.cyan("\u{1F525} XYZAI - AI Coding Assistant"));
-  console.log(source_default.gray("\u2500".repeat(40)));
-  console.log(source_default.white(loadedConfig.language === "fa" ? "\u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645. \u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F. /help \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627" : "Hello! I'm XYZAI. Type a message. /help for help"));
-  console.log(source_default.gray("\u2500".repeat(40)));
-  console.log("");
-  rl.prompt();
-  rl.on("line", async (input) => {
-    const trimmed = input.trim();
-    if (!trimmed) {
-      rl.prompt();
-      return;
+  const header = blessed.box({
+    parent: screen2,
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: 3,
+    content: source_default.bold.cyan(" \u{1F525} XYZAI ") + source_default.gray("| ") + source_default.white("AI Coding Assistant") + source_default.gray(" | ") + source_default.yellow(loadedConfig.model),
+    border: { type: "line" },
+    style: {
+      border: { fg: "cyan" },
+      fg: "white"
     }
+  });
+  const chatArea = blessed.box({
+    parent: screen2,
+    top: 3,
+    left: 0,
+    width: "100%",
+    height: "100%-5",
+    scrollable: true,
+    alwaysScroll: true,
+    scrollbar: {
+      style: {
+        bg: "cyan"
+      }
+    },
+    style: {
+      fg: "white"
+    }
+  });
+  const inputBox = blessed.box({
+    parent: screen2,
+    bottom: 0,
+    left: 0,
+    width: "100%",
+    height: 3,
+    border: { type: "line" },
+    label: source_default.cyan(" Message "),
+    style: {
+      border: { fg: "cyan" },
+      fg: "white"
+    }
+  });
+  const input = blessed.textarea({
+    parent: inputBox,
+    top: 0,
+    left: 1,
+    width: "100%-2",
+    height: 1,
+    inputOnFocus: true,
+    style: {
+      fg: "white",
+      focus: {
+        border: { fg: "cyan" }
+      }
+    }
+  });
+  const statusBar = blessed.box({
+    parent: screen2,
+    bottom: 3,
+    left: 0,
+    width: "100%",
+    height: 1,
+    content: source_default.gray(" Tab: switch mode | Ctrl+C: exit | /help: help"),
+    style: {
+      fg: "gray",
+      bg: "black"
+    }
+  });
+  const welcomeMsg = loadedConfig.language === "fa" ? "\u0633\u0644\u0627\u0645! \u0645\u0646 XYZAI \u0647\u0633\u062A\u0645\u060C \u062F\u0633\u062A\u06CC\u0627\u0631 \u0628\u0631\u0646\u0627\u0645\u0647\u200C\u0646\u0648\u06CC\u0633\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0634\u0645\u0627.\n\u06CC\u06A9 \u067E\u06CC\u0627\u0645 \u062A\u0627\u06CC\u067E \u06A9\u0646\u06CC\u062F \u06CC\u0627 /help \u0631\u0627 \u0628\u0631\u0627\u06CC \u0631\u0627\u0647\u0646\u0645\u0627 \u0628\u0632\u0646\u06CC\u062F." : "Hello! I'm XYZAI, your AI coding assistant.\nType a message or /help for help.";
+  addMessage(chatArea, "system", welcomeMsg);
+  const messages = [];
+  input.on("submit", async (text) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    input.clearValue();
+    screen2.render();
     if (trimmed.startsWith("/")) {
-      handleCommand(trimmed, loadedConfig, agent, rl);
+      handleCommand(trimmed, loadedConfig, agent, chatArea, screen2);
       return;
     }
-    let output = "";
+    addMessage(chatArea, "user", trimmed);
+    messages.push({ role: "user", content: trimmed });
+    screen2.render();
+    const thinkingId = addMessage(chatArea, "thinking", "\u{1F914} " + (loadedConfig.language === "fa" ? "\u062F\u0631 \u062D\u0627\u0644 \u0641\u06A9\u0631 \u06A9\u0631\u062F\u0646..." : "Thinking..."));
+    screen2.render();
+    let fullResponse = "";
     const callbacks = {
       onThinking: () => {
-        process.stdout.write(source_default.yellow("\u{1F914} Thinking...\r"));
       },
       onToken: (token) => {
-        process.stdout.write(token);
+        fullResponse += token;
+        updateMessage(chatArea, thinkingId, "assistant", fullResponse);
+        screen2.render();
       },
       onToolCall: (name, args) => {
-        console.log(source_default.gray(`
-  \u{1F527} ${name}`));
+        addMessage(chatArea, "tool", `\u{1F527} ${name}`);
+        screen2.render();
       },
       onToolResult: (name, result) => {
         if (result.error) {
-          console.log(source_default.red(`  \u274C ${result.error}`));
+          addMessage(chatArea, "error", `\u274C ${result.error}`);
+          screen2.render();
         }
       },
       onPermission: async () => true,
       onDone: (response) => {
-        console.log("");
-        console.log("");
+        messages.push({ role: "assistant", content: response });
       },
       onError: (error) => {
-        console.log(source_default.red(`
-\u274C Error: ${error}`));
+        removeMessage(chatArea, thinkingId);
+        addMessage(chatArea, "error", `\u274C Error: ${error}`);
+        screen2.render();
       }
     };
     await agent.chat(trimmed, callbacks);
-    rl.prompt();
+    screen2.render();
   });
-  rl.on("close", () => {
-    console.log(source_default.gray("\n" + (loadedConfig.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!")));
+  input.key(["C-c"], () => {
     process.exit(0);
   });
+  screen2.key(["C-c"], () => {
+    process.exit(0);
+  });
+  input.focus();
+  screen2.render();
 }
-function handleCommand(cmd, config, agent, rl) {
+function addMessage(parent, role, content) {
+  const id = messageId++;
+  const colors = {
+    user: "cyan",
+    assistant: "green",
+    system: "gray",
+    thinking: "yellow",
+    tool: "blue",
+    error: "red"
+  };
+  const labels = {
+    user: "\u{1F464} You",
+    assistant: "\u{1F916} XYZAI",
+    system: "\u{1F4E2} System",
+    thinking: "\u23F3",
+    tool: "\u{1F527} Tool",
+    error: "\u274C Error"
+  };
+  const color = colors[role] || "white";
+  const label = labels[role] || role;
+  const box2 = blessed.box({
+    parent,
+    width: "100%",
+    height: "auto",
+    tags: true,
+    content: `{${color}-fg}${label}:{/${color}-fg} ${content}`,
+    style: {
+      fg: "white"
+    }
+  });
+  box2._messageId = id;
+  parent.setScrollPerc(100);
+  return id;
+}
+function updateMessage(parent, id, role, content) {
+  const children = parent.children || [];
+  for (const child of children) {
+    if (child._messageId === id) {
+      const colors = {
+        assistant: "green",
+        thinking: "yellow"
+      };
+      const labels = {
+        assistant: "\u{1F916} XYZAI",
+        thinking: "\u23F3"
+      };
+      const color = colors[role] || "white";
+      const label = labels[role] || role;
+      child.setContent(`{${color}-fg}${label}:{/${color}-fg} ${content}`);
+      parent.setScrollPerc(100);
+      break;
+    }
+  }
+}
+function removeMessage(parent, id) {
+  const children = parent.children || [];
+  for (const child of children) {
+    if (child._messageId === id) {
+      parent.remove(child);
+      break;
+    }
+  }
+}
+function handleCommand(cmd, config, agent, chatArea, screen2) {
   const parts = cmd.split(" ");
   const command = parts[0].toLowerCase();
   switch (command) {
     case "/exit":
     case "/quit":
-      console.log(source_default.gray(config.language === "fa" ? "\u062E\u062F\u0627\u062D\u0627\u0641\u0638!" : "Goodbye!"));
       process.exit(0);
     case "/help":
-      console.log("");
-      console.log(source_default.bold.cyan(config.language === "fa" ? "=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===" : "=== XYZAI Help ==="));
-      console.log("");
-      console.log(source_default.white(config.language === "fa" ? "\u062F\u0633\u062A\u0648\u0631\u0627\u062A:" : "Commands:"));
-      console.log(source_default.gray("  /help  - " + (config.language === "fa" ? "\u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627" : "Show help")));
-      console.log(source_default.gray("  /model - " + (config.language === "fa" ? "\u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644" : "Change model")));
-      console.log(source_default.gray("  /lang  - " + (config.language === "fa" ? "\u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)" : "Change language (fa/en)")));
-      console.log(source_default.gray("  /clear - " + (config.language === "fa" ? "\u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647" : "Clear conversation")));
-      console.log(source_default.gray("  /exit  - " + (config.language === "fa" ? "\u062E\u0631\u0648\u062C" : "Exit")));
-      console.log("");
+      const helpText = config.language === "fa" ? `=== \u0631\u0627\u0647\u0646\u0645\u0627\u06CC XYZAI ===
+
+\u062F\u0633\u062A\u0648\u0631\u0627\u062A:
+  /help  - \u0646\u0645\u0627\u06CC\u0634 \u0631\u0627\u0647\u0646\u0645\u0627
+  /model - \u062A\u063A\u06CC\u06CC\u0631 \u0645\u062F\u0644
+  /lang  - \u062A\u063A\u06CC\u06CC\u0631 \u0632\u0628\u0627\u0646 (fa/en)
+  /clear - \u067E\u0627\u06A9 \u06A9\u0631\u062F\u0646 \u0645\u06A9\u0627\u0644\u0645\u0647
+  /exit  - \u062E\u0631\u0648\u062C
+
+\u0627\u0628\u0632\u0627\u0631\u0647\u0627:
+  \u062E\u0648\u0627\u0646\u062F\u0646 \u0648 \u0646\u0648\u0634\u062A\u0646 \u0641\u0627\u06CC\u0644\u200C\u0647\u0627
+  \u0627\u062C\u0631\u0627\u06CC \u062F\u0633\u062A\u0648\u0631\u0627\u062A \u062A\u0631\u0645\u06CC\u0646\u0627\u0644
+  \u062C\u0633\u062A\u062C\u0648\u06CC \u06A9\u062F
+  \u0645\u0631\u0648\u0631 \u0648\u0628` : `=== XYZAI Help ===
+
+Commands:
+  /help  - Show help
+  /model - Change model
+  /lang  - Change language (fa/en)
+  /clear - Clear conversation
+  /exit  - Exit
+
+Tools:
+  Read and write files
+  Execute terminal commands
+  Search code
+  Browse the web`;
+      addMessage(chatArea, "system", helpText);
       break;
     case "/lang":
       const lang = parts[1];
       if (lang === "en" || lang === "fa") {
         config.language = lang;
         agent.setLanguage(lang);
-        console.log(source_default.green(lang === "fa" ? "\u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "Language changed to English"));
+        addMessage(chatArea, "system", lang === "fa" ? "\u0632\u0628\u0627\u0646 \u0628\u0647 \u0641\u0627\u0631\u0633\u06CC \u062A\u063A\u06CC\u06CC\u0631 \u06A9\u0631\u062F" : "Language changed to English");
       } else {
-        console.log(source_default.gray("Usage: /lang fa  or  /lang en"));
+        addMessage(chatArea, "system", "Usage: /lang fa  or  /lang en");
       }
       break;
     case "/clear":
       agent.clearConversation();
-      console.log(source_default.green(config.language === "fa" ? "\u0645\u06A9\u0627\u0644\u0645\u0647 \u067E\u0627\u06A9 \u0634\u062F" : "Conversation cleared"));
+      while (chatArea.children.length > 0) {
+        chatArea.remove(chatArea.children[0]);
+      }
+      addMessage(chatArea, "system", config.language === "fa" ? "\u0645\u06A9\u0627\u0644\u0645\u0647 \u067E\u0627\u06A9 \u0634\u062F" : "Conversation cleared");
       break;
     case "/model":
-      console.log(source_default.cyan(config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC:" : "Current model:"));
-      console.log(source_default.white(`  ${config.model}`));
-      console.log(source_default.gray(config.language === "fa" ? "\u0628\u0631\u0627\u06CC \u062A\u063A\u06CC\u06CC\u0631\u060C \u0645\u062F\u0644 \u0631\u0627 \u062F\u0631 config \u062A\u0646\u0638\u06CC\u0645 \u06A9\u0646\u06CC\u062F" : "Change in config file"));
+      addMessage(chatArea, "system", `${config.language === "fa" ? "\u0645\u062F\u0644 \u0641\u0639\u0644\u06CC" : "Current model"}: ${config.model}`);
       break;
     default:
-      console.log(source_default.red(config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}`));
+      addMessage(chatArea, "error", config.language === "fa" ? `\u062F\u0633\u062A\u0648\u0631 \u0646\u0627\u0634\u0646\u0627\u062E\u062A\u0647: ${command}` : `Unknown command: ${command}`);
   }
-  rl.prompt();
+  screen2.render();
 }
-var readline;
+var blessed, messageId;
 var init_app = __esm({
   "src/tui/app.ts"() {
     "use strict";
-    readline = __toESM(require("readline"));
+    blessed = __toESM(require("blessed"));
     init_source();
     init_agent();
+    init_schema();
+    messageId = 0;
   }
 });
 

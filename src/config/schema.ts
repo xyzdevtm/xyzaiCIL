@@ -92,8 +92,8 @@ const DEFAULT_PERMISSIONS: PermissionRule[] = [
 ];
 
 const DEFAULT_CONFIG: XYZAIConfig = {
-  model: 'mimo/mimo-auto',
-  provider: 'mimo',
+  model: 'deepseek/deepseek-chat',
+  provider: 'deepseek',
   language: 'en',
   providers: DEFAULT_PROVIDERS,
   permissions: DEFAULT_PERMISSIONS,
